@@ -304,11 +304,21 @@ function calcPress(k){
     if(isNaN(v)){if(calcExpr){$("calcPreview").textContent="";$("calcDisplay").textContent="දෝෂයකි";calcExpr="";}return}
     calcHist.push({expr:calcSym(calcExpr),res:calcFmt(v)});if(calcHist.length>5)calcHist.shift();renderCalcHist();
     $("calcPreview").textContent=calcSym(calcExpr)+" =";calcExpr=calcFmt(v);calcDone=true;
-    $("calcDisplay").textContent=calcExpr;return;
+    $("calcDisplay").textContent=calcExpr;calcPop();return;
   }
   calcRender();
 }
 let calcIsOpen=false,calcHist=[];
+function calcPop(){const d=$("calcDisplay");d.classList.remove("pop");void d.offsetWidth;d.classList.add("pop")}
+// Quick tare chips: subtract the bag weight from the current total (module scope, so no inline onclick)
+document.querySelectorAll(".calc-chip[data-tare]").forEach(b=>b.addEventListener("click",()=>{
+  if(navigator.vibrate)navigator.vibrate(8);
+  if(!calcExpr||calcExpr==="-"){showToast("පළමුව දළු බර ඇතුළත් කරන්න.");return}
+  calcDone=false;
+  calcExpr=calcExpr.replace(/[+\-*/.]+$/,"")+"-"+b.dataset.tare;
+  calcRender();calcPop();
+}));
+$("calcReset").addEventListener("click",()=>{if(navigator.vibrate)navigator.vibrate(8);calcExpr="";calcDone=false;calcRender();calcPop()});
 function renderCalcHist(){
   $("calcHistory").innerHTML=calcHist.slice(-3).map(h=>`<button type="button" class="calc-h" data-r="${escapeHtml(h.res)}">${escapeHtml(h.expr)} = <b>${escapeHtml(h.res)}</b></button>`).join("");
 }

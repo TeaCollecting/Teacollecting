@@ -182,12 +182,20 @@
     <div id="calcSheet" class="calc-sheet">
       <div class="calc-grab" id="calcGrab">
         <div class="calc-handle"></div>
-        <div class="calc-head"><span>🧮 ගණකය</span><button id="closeCalc" class="calc-x" type="button" aria-label="වසන්න">✕</button></div>
+        <div class="calc-head"><span>🧮 ගණකය<small>දළු බර ඉක්මනින් ගණනය කරන්න</small></span><button id="closeCalc" class="calc-x" type="button" aria-label="වසන්න">✕</button></div>
       </div>
       <div class="calc-screen">
+        <span class="calc-unit">kg</span>
         <div id="calcHistory" class="calc-history"></div>
         <div id="calcPreview" class="calc-preview"></div>
         <div id="calcDisplay" class="calc-display">0</div>
+      </div>
+      <div class="calc-chips-label">මල්ලේ බර අඩු කරන්න (ඉක්මන් බොත්තම්)</div>
+      <div class="calc-chips">
+        <button type="button" class="calc-chip" data-tare="1.0">🛍️ මල්ලේ බර −1.0</button>
+        <button type="button" class="calc-chip" data-tare="1.5">🛍️ මල්ලේ බර −1.5</button>
+        <button type="button" class="calc-chip" data-tare="2.0">🛍️ මල්ලේ බර −2.0</button>
+        <button type="button" class="calc-chip reset" id="calcReset">↺ මුල සිට</button>
       </div>
       <div class="calc-keys">
         <button class="calc-key fn" data-k="C">C</button><button class="calc-key fn" data-k="B">⌫</button><button class="calc-key fn" data-k="%">%</button><button class="calc-key op" data-k="/">÷</button>
