@@ -1,0 +1,11 @@
+{
+  "name": "තේ දළු POS",
+  "short_name": "තේ දළු POS",
+  "description": "තේ දළු එකතු කිරීමේ ව්‍යාපාර කළමනාකරණ පද්ධතිය",
+  "lang": "si",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3f7f4",
+  "theme_color": "#176b45",
+  "icons": []
+}

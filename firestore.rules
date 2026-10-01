@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function hasProfile() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function role() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isOwner() { return hasProfile() && role() == 'owner'; }
+    function isCollector() { return hasProfile() && role() == 'collector'; }
+    function staff() { return isOwner() || isCollector(); }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      // Create/change user roles only through Firebase Console or trusted Admin SDK.
+      allow create, update, delete: if false;
+    }
+    match /settings/{settingId} {
+      allow read: if staff();
+      allow create, update: if isOwner();
+      allow delete: if false;
+    }
+    match /farmers/{farmerId} {
+      allow read: if staff();
+      allow create, update: if isOwner();
+      allow delete: if false;
+    }
+    match /collections/{collectionId} {
+      allow read: if staff();
+      allow create: if staff()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.kg is number
+        && request.resource.data.kg > 0
+        && request.resource.data.pricePerKg is number
+        && request.resource.data.total >= request.resource.data.kg * request.resource.data.pricePerKg - 0.01
+        && request.resource.data.total <= request.resource.data.kg * request.resource.data.pricePerKg + 0.01
+        && request.resource.data.pricePerKg ==
+          get(/databases/$(database)/documents/settings/main).data.fixedPrice;
+      // Keep collection records immutable; corrections should be handled by owner through a documented adjustment workflow.
+      allow update, delete: if false;
+    }
+    match /payments/{paymentId} {
+      allow read: if staff();
+      allow create, update: if isOwner()
+        && request.resource.data.gross is number
+        && request.resource.data.advance is number
+        && request.resource.data.deductions is number
+        && request.resource.data.paidAmount is number
+        && request.resource.data.balance >=
+          request.resource.data.gross - request.resource.data.advance
+          - request.resource.data.deductions - request.resource.data.paidAmount - 0.01
+        && request.resource.data.balance <=
+          request.resource.data.gross - request.resource.data.advance
+          - request.resource.data.deductions - request.resource.data.paidAmount + 0.01
+        && request.resource.data.advance >= 0
+        && request.resource.data.deductions >= 0
+        && request.resource.data.paidAmount >= 0
+        && request.resource.data.balance >= 0;
+      allow delete: if false;
+    }
+    match /inventory/{movementId} {
+      allow read: if staff();
+      allow create: if isOwner()
+        && request.resource.data.type == 'dispatch'
+        && request.resource.data.kg is number
+        && request.resource.data.kg > 0
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+    match /expenses/{expenseId} {
+      allow read: if staff();
+      allow create, update: if isOwner();
+      allow delete: if false;
+    }
+  }
+}
