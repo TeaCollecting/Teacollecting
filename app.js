@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // Firebase web-app configuration (project: teacollecting)
 const firebaseConfig = {
@@ -75,8 +75,9 @@ function renderDashboard(){
 }
 function renderFarmers(){
   const term=($("farmerSearch").value||"").toLowerCase();
-  $("farmerRows").innerHTML=farmers.filter(f=>(f.name+" "+f.code+" "+(f.phone||"")).toLowerCase().includes(term)).map(f=>`<tr><td>${escapeHtml(f.code)}</td><td>${escapeHtml(f.name)}</td><td>${escapeHtml(f.phone)}</td><td>${escapeHtml(f.address)}</td><td><button class="btn btn-secondary qr-farmer-btn" type="button" data-farmer-id="${escapeHtml(f.id)}">QR / මුද්‍රණය</button></td></tr>`).join("")||'<tr><td colspan="5">ගොවීන් නැත.</td></tr>';
+  $("farmerRows").innerHTML=farmers.filter(f=>(f.name+" "+f.code+" "+(f.phone||"")).toLowerCase().includes(term)).map(f=>`<tr><td>${escapeHtml(f.code)}</td><td>${escapeHtml(f.name)}</td><td>${escapeHtml(f.phone)}</td><td>${escapeHtml(f.address)}</td><td><button class="btn btn-secondary qr-farmer-btn" type="button" data-farmer-id="${escapeHtml(f.id)}">QR / මුද්‍රණය</button></td><td class="owner-only"><button class="btn btn-light del-farmer-btn" type="button" data-farmer-id="${escapeHtml(f.id)}">මකන්න</button></td></tr>`).join("")||'<tr><td colspan="6">ගොවීන් නැත.</td></tr>';
   document.querySelectorAll(".qr-farmer-btn").forEach(btn=>btn.addEventListener("click",()=>showFarmerQr(btn.dataset.farmerId)));
+  if(!$("farmerCode").value)$("farmerCode").value=nextFarmerCode();
 }
 function renderSettlementRows(){
   $("settlementRows").innerHTML=paymentsData.map(p=>`<tr><td>${escapeHtml(p.month)}</td><td>${escapeHtml(farmerName(p.farmerId))}</td><td>${num(p.kg).toFixed(2)}</td><td>${money(p.gross)}</td><td>${money(p.paidAmount)}</td><td>${money(p.balance)}</td></tr>`).join("")||'<tr><td colspan="6">ගෙවීම් සටහන් නැත.</td></tr>';
@@ -196,13 +197,14 @@ onAuthStateChanged(auth,async user=>{
     if(!profile.exists()||!["owner","collector"].includes(profile.data().role)){await signOut(auth);$("loginError").textContent="මෙම ගිණුමට පද්ධති අවසර ලබා දී නැත. හිමිකරු අමතන්න.";return}
     role=profile.data().role;document.body.classList.toggle("role-owner",role==="owner");$("loginView").classList.add("hidden");$("appView").classList.remove("hidden");$("userBox").classList.remove("hidden");
     fillMonthOptions();["collectionDate","dispatchDate","settlePaidDate"].forEach(dateInput);dateInput("reportFrom");dateInput("reportTo");
+    showPage(role==="owner"?"dashboard":"collect");
     await loadAll();
   }catch(e){console.error(e);showToast("දත්ත ලබාගත නොහැක. Firebase සැකසුම් හා ආරක්ෂක නීති පරීක්ෂා කරන්න.");}
 });
-document.querySelectorAll(".tab").forEach(btn=>btn.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b===btn));document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));$("page-"+btn.dataset.page).classList.remove("hidden")}));
+document.querySelectorAll(".tab").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
 $("farmerSearch").addEventListener("input",renderFarmers);
 $("priceMonth")?.addEventListener("change",()=>{$("monthPrice").value=priceForMonth($("priceMonth").value)||""});
-$("farmerForm").addEventListener("submit",e=>{e.preventDefault();if(!requireOwner())return;withBusy(e.submitter,async()=>{
+$("farmerForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.submitter,async()=>{
   const code=$("farmerCode").value.trim(),name=$("farmerName").value.trim();
   if(farmers.some(f=>f.code.toLowerCase()===code.toLowerCase()))throw Error("මෙම ගොවි අංකය දැනටමත් භාවිතා වේ.");
   await addDoc(collection(db,"farmers"),{code,name,phone:$("farmerPhone").value.trim(),address:$("farmerAddress").value.trim(),active:true,createdAt:serverTimestamp(),createdBy:currentUser.uid});
@@ -247,4 +249,90 @@ $("priceForm")?.addEventListener("submit",e=>{e.preventDefault();if(!requireOwne
 })});
 $("runReport").addEventListener("click",renderReport);$("exportCsv").addEventListener("click",exportCsv);
 $("printReport").addEventListener("click",()=>printable("දළු එකතු කිරීම් වාර්තාව",`<h1>${escapeHtml(settings.businessName)}</h1><h2>දළු එකතු කිරීම් වාර්තාව</h2><p>${escapeHtml($("reportFrom").value)} සිට ${escapeHtml($("reportTo").value)} දක්වා</p><table><tr><th>දිනය</th><th>ගොවියා</th><th>බර kg</th><th>මිල/kg</th><th>වටිනාකම</th></tr>${reportRows().map(c=>`<tr><td>${escapeHtml(c.date)}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${num(c.kg).toFixed(2)}</td><td>${priceForDate(c.date)?money(priceForDate(c.date)):"—"}</td><td>${priceForDate(c.date)?money(valueOf(c)):"—"}</td></tr>`).join("")}</table><p><b>මුළු බර:</b> ${reportRows().reduce((s,c)=>s+num(c.kg),0).toFixed(2)} kg</p><p><b>මුළු වටිනාකම:</b> ${money(reportRows().reduce((s,c)=>s+valueOf(c),0))}</p>`));
+
+function showPage(name){
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
+  document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));
+  $("page-"+name)?.classList.remove("hidden");
+}
+function nextFarmerCode(){
+  let max=0,width=4;
+  farmers.forEach(f=>{const m=/^F-(\d+)$/i.exec(f.code||"");if(m){max=Math.max(max,parseInt(m[1],10));width=Math.max(width,m[1].length)}});
+  return "F-"+String(max+1).padStart(width,"0");
+}
+// Owner-only: delete a farmer (Firestore rules also enforce this)
+$("farmerRows").addEventListener("click",e=>{
+  const b=e.target.closest(".del-farmer-btn");if(!b)return;
+  if(!requireOwner())return;
+  const f=farmers.find(x=>x.id===b.dataset.farmerId);if(!f)return;
+  const cols=collectionsData.filter(c=>c.farmerId===f.id).length,pays=paymentsData.filter(p=>p.farmerId===f.id).length;
+  let msg=`"${f.name}" (${f.code}) ගොවියා මකා දමන්නද?`;
+  if(cols||pays)msg+=`\n\nඅවවාදයයි: මෙම ගොවියාට දළු එකතු කිරීම් ${cols} ක් සහ ගෙවීම් ${pays} ක් ඇත. ඒවා ඉතිරි වන අතර වාර්තාවල "නොදන්නා ගොවියා" ලෙස පෙනේ.`;
+  if(!confirm(msg))return;
+  withBusy(b,async()=>{await deleteDoc(doc(db,"farmers",f.id));showToast("ගොවියා මකා දමන ලදී.");await loadAll()});
+});
+
+// ---------- Calculator ----------
+let calcExpr="",calcDone=false;
+const calcSym=s=>s.replace(/\*/g,"×").replace(/\//g,"÷").replace(/-/g,"−");
+function calcEval(s){
+  s=s.replace(/[+\-*/.]+$/,"");
+  if(!s||!/^[0-9+\-*/.]+$/.test(s))return NaN;
+  try{const v=Function('"use strict";return ('+s+')')();return Number.isFinite(v)?Math.round(v*1e8)/1e8:NaN}catch{return NaN}
+}
+function calcFmt(v){let s=String(v);if(/e/i.test(s))s=v.toFixed(8).replace(/\.?0+$/,"");return s}
+function calcRender(){
+  $("calcDisplay").textContent=calcExpr?calcSym(calcExpr):"0";
+  const hasOp=/[0-9.][+\-*/]/.test(calcExpr),v=calcEval(calcExpr);
+  $("calcPreview").textContent=(hasOp&&!calcDone&&!isNaN(v))?"= "+calcFmt(v):"";
+}
+function calcPress(k){
+  if(calcDone){if(/[\d.]/.test(k))calcExpr="";calcDone=false}
+  const tok=calcExpr.split(/[+\-*/]/).pop(),last=calcExpr.slice(-1);
+  if(k==="C")calcExpr="";
+  else if(k==="B")calcExpr=calcExpr.slice(0,-1);
+  else if(/\d/.test(k)){if(tok==="0")calcExpr=calcExpr.slice(0,-1);calcExpr+=k}
+  else if(k==="."){if(tok.includes("."))return;calcExpr+=tok===""?"0.":"."}
+  else if("+-*/".includes(k)){
+    if(calcExpr===""){if(k==="-")calcExpr="-";}
+    else if("+-*/".includes(last)){if(calcExpr.length>1)calcExpr=calcExpr.slice(0,-1)+k}
+    else calcExpr+=k;
+  }
+  else if(k==="%"){if(tok&&tok!=="-"&&!isNaN(parseFloat(tok)))calcExpr=calcExpr.slice(0,calcExpr.length-tok.length)+calcFmt(Math.round(parseFloat(tok)/100*1e8)/1e8)}
+  else if(k==="="){
+    const v=calcEval(calcExpr);
+    if(isNaN(v)){if(calcExpr){$("calcPreview").textContent="";$("calcDisplay").textContent="දෝෂයකි";calcExpr="";}return}
+    $("calcPreview").textContent=calcSym(calcExpr)+" =";calcExpr=calcFmt(v);calcDone=true;
+    $("calcDisplay").textContent=calcExpr;return;
+  }
+  calcRender();
+}
+const calcOpen=()=>!$("calcModal").classList.contains("hidden");
+function openCalc(){$("calcModal").classList.remove("hidden");calcRender()}
+function closeCalc(){$("calcModal").classList.add("hidden")}
+$("calcFab").addEventListener("click",openCalc);
+$("closeCalc").addEventListener("click",closeCalc);
+$("calcModal").addEventListener("click",e=>{if(e.target===$("calcModal"))closeCalc()});
+document.querySelectorAll(".calc-key").forEach(b=>b.addEventListener("click",()=>calcPress(b.dataset.k)));
+$("calcUse").addEventListener("click",()=>{
+  const v=calcEval(calcExpr);
+  if(isNaN(v)||v<=0){showToast("වලංගු බරක් ගණනය කරන්න.");return}
+  showPage("collect");
+  $("collectionKg").value=(Math.round(v*100)/100).toString();
+  closeCalc();$("collectionKg").focus();
+});
+document.addEventListener("keydown",e=>{
+  if(!calcOpen())return;
+  if(e.key==="Escape"){closeCalc();return}
+  let k=null;
+  if(/^[0-9]$/.test(e.key))k=e.key;
+  else if("+-*/.".includes(e.key))k=e.key;
+  else if(e.key===",")k=".";
+  else if(e.key==="Enter"||e.key==="=")k="=";
+  else if(e.key==="Backspace")k="B";
+  else if(e.key==="%")k="%";
+  else if(e.key.toLowerCase()==="c")k="C";
+  if(k){e.preventDefault();calcPress(k)}
+});
+
 if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);

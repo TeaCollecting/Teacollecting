@@ -28,14 +28,16 @@
 
     <section id="appView" class="hidden">
       <nav class="tabs" aria-label="ප්‍රධාන මෙනුව">
-        <button class="tab active" data-page="dashboard">සාරාංශය</button>
+        <button class="tab owner-only active" data-page="dashboard">සාරාංශය</button>
         <button class="tab" data-page="farmers">ගොවීන්</button>
         <button class="tab" data-page="collect">දළු එකතු කිරීම</button>
-        <button class="tab" data-page="settlements">මාසික ගෙවීම්</button>
-        <button class="tab" data-page="inventory">තොග</button>
-        <button class="tab" data-page="reports">වාර්තා</button>
+        <button class="tab owner-only" data-page="settlements">මාසික ගෙවීම්</button>
+        <button class="tab owner-only" data-page="inventory">තොග</button>
+        <button class="tab owner-only" data-page="reports">වාර්තා</button>
         <button class="tab owner-only" data-page="settings">සැකසුම්</button>
       </nav>
+
+      <button id="calcFab" class="calc-fab" type="button" aria-label="ගණකය">🧮</button>
 
       <section id="page-dashboard" class="page">
         <h1>ප්‍රධාන පුවරුව</h1>
@@ -56,10 +58,10 @@
           <label>ගොවියාගේ නම<input id="farmerName" required></label>
           <label>දුරකථන අංකය<input id="farmerPhone" inputmode="tel"></label>
           <label>ලිපිනය / ගම<input id="farmerAddress"></label>
-          <button class="btn btn-primary full owner-only" type="submit">ගොවියා සුරකින්න</button>
+          <button class="btn btn-primary full" type="submit">ගොවියා සුරකින්න</button>
           <p id="farmerMsg" class="full message"></p>
         </form>
-        <div class="panel"><h2>ගොවීන්ගේ ලැයිස්තුව</h2><input id="farmerSearch" placeholder="නම හෝ ගොවි අංකය සොයන්න"><div class="table-wrap"><table><thead><tr><th>අංකය</th><th>නම</th><th>දුරකථනය</th><th>ලිපිනය</th></tr></thead><tbody id="farmerRows"></tbody></table></div></div>
+        <div class="panel"><h2>ගොවීන්ගේ ලැයිස්තුව</h2><input id="farmerSearch" placeholder="නම හෝ ගොවි අංකය සොයන්න"><div class="table-wrap"><table><thead><tr><th>අංකය</th><th>නම</th><th>දුරකථනය</th><th>ලිපිනය</th><th></th><th class="owner-only"></th></tr></thead><tbody id="farmerRows"></tbody></table></div></div>
       </section>
 
       <section id="page-collect" class="page hidden">
@@ -161,7 +163,10 @@
         <div class="panel"><h2>පද්ධතියේ පරිශීලකයන්</h2><p>නව පරිශීලකයන් Firebase Authentication තුළ හිමිකරු විසින් නිර්මාණය කර, Firestore හි <code>users</code> එකතුවේ එම UID සඳහා <code>role</code> ලෙස <code>owner</code> හෝ <code>collector</code> යොදන්න. විස්තර README හි ඇත.</p></div>
       </section>
     </section>
-    <footer>තේ දළු POS · දත්ත Cloud තුළ සුරැකේ · භාවිතයට පෙර ආරක්ෂක සැකසුම් සම්පූර්ණ කරන්න</footer>
+    <footer>
+      <div>තේ දළු POS · දත්ත Cloud තුළ සුරැකේ</div>
+      <div class="credit">Created by <b style="color:#276CF5">NEXORA</b> <b style="color:#09B041">TECHNOLOGIES</b><br><em>Building the Future, Digitally</em><br>WhatsApp: <a href="https://wa.me/94706562952">0706562952</a> · Phone: <a href="tel:0716562952">0716562952</a> · <a href="mailto:sudanchamalka@gmail.com">sudanchamalka@gmail.com</a></div>
+    </footer>
   </main>
   <div id="qrModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
     <div class="modal-card">
@@ -171,6 +176,21 @@
       <div id="farmerQrCode" class="qr-code-box"></div>
       <p class="muted">මෙම QR Code එක POS පද්ධතිය තුළ ගොවියා හඳුනාගැනීමට පමණක් භාවිත වේ.</p>
       <button id="printFarmerQr" class="btn btn-primary" type="button">QR හැඳුනුම්පත මුද්‍රණය</button>
+    </div>
+  </div>
+  <div id="calcModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="ගණකය">
+    <div class="modal-card calc-card">
+      <button id="closeCalc" class="modal-close btn btn-light" type="button" aria-label="වසන්න">✕</button>
+      <h2>ගණකය</h2>
+      <div class="calc-screen"><div id="calcPreview" class="calc-preview"></div><div id="calcDisplay" class="calc-display">0</div></div>
+      <div class="calc-keys">
+        <button class="calc-key fn" data-k="C">C</button><button class="calc-key fn" data-k="B">⌫</button><button class="calc-key fn" data-k="%">%</button><button class="calc-key op" data-k="/">÷</button>
+        <button class="calc-key" data-k="7">7</button><button class="calc-key" data-k="8">8</button><button class="calc-key" data-k="9">9</button><button class="calc-key op" data-k="*">×</button>
+        <button class="calc-key" data-k="4">4</button><button class="calc-key" data-k="5">5</button><button class="calc-key" data-k="6">6</button><button class="calc-key op" data-k="-">−</button>
+        <button class="calc-key" data-k="1">1</button><button class="calc-key" data-k="2">2</button><button class="calc-key" data-k="3">3</button><button class="calc-key op" data-k="+">+</button>
+        <button class="calc-key zero" data-k="0">0</button><button class="calc-key" data-k=".">.</button><button class="calc-key eq" data-k="=">=</button>
+      </div>
+      <button id="calcUse" class="btn btn-primary calc-use" type="button">ප්‍රතිඵලය බර (kg) ලෙස යොදන්න</button>
     </div>
   </div>
   <div id="toast" class="toast" aria-live="polite"></div>

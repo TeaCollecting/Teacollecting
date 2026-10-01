@@ -25,8 +25,13 @@ service cloud.firestore {
     }
     match /farmers/{farmerId} {
       allow read: if staff();
-      allow create, update: if isOwner();
-      allow delete: if false;
+      // Owner and collector can register new farmers; only the owner can edit or delete.
+      allow create: if staff()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.code is string && request.resource.data.code.size() > 0;
+      allow update: if isOwner();
+      allow delete: if isOwner();
     }
     match /monthlyPrices/{month} {
       allow read: if staff();
