@@ -20,9 +20,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+
 const $ = id => document.getElementById(id);
 const money = n => "රු. " + Number(n || 0).toLocaleString("en-LK",{minimumFractionDigits:2,maximumFractionDigits:2});
 const num = n => Number(n || 0);
