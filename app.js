@@ -302,18 +302,38 @@ function calcPress(k){
   else if(k==="="){
     const v=calcEval(calcExpr);
     if(isNaN(v)){if(calcExpr){$("calcPreview").textContent="";$("calcDisplay").textContent="දෝෂයකි";calcExpr="";}return}
+    calcHist.push({expr:calcSym(calcExpr),res:calcFmt(v)});if(calcHist.length>5)calcHist.shift();renderCalcHist();
     $("calcPreview").textContent=calcSym(calcExpr)+" =";calcExpr=calcFmt(v);calcDone=true;
     $("calcDisplay").textContent=calcExpr;return;
   }
   calcRender();
 }
-const calcOpen=()=>!$("calcModal").classList.contains("hidden");
-function openCalc(){$("calcModal").classList.remove("hidden");calcRender()}
-function closeCalc(){$("calcModal").classList.add("hidden")}
+let calcIsOpen=false,calcHist=[];
+function renderCalcHist(){
+  $("calcHistory").innerHTML=calcHist.slice(-3).map(h=>`<button type="button" class="calc-h" data-r="${escapeHtml(h.res)}">${escapeHtml(h.expr)} = <b>${escapeHtml(h.res)}</b></button>`).join("");
+}
+$("calcHistory").addEventListener("click",e=>{const b=e.target.closest(".calc-h");if(!b)return;calcExpr=b.dataset.r;calcDone=false;calcRender()});
+function openCalc(){
+  const o=$("calcModal");o.classList.remove("hidden");void o.offsetWidth;o.classList.add("show");
+  calcIsOpen=true;$("calcSheet").style.transform="";calcRender();renderCalcHist();
+}
+function closeCalc(){
+  if(!calcIsOpen)return;calcIsOpen=false;
+  const o=$("calcModal");o.classList.remove("show");$("calcSheet").style.transform="";
+  setTimeout(()=>{if(!calcIsOpen)o.classList.add("hidden")},250);
+}
 $("calcFab").addEventListener("click",openCalc);
 $("closeCalc").addEventListener("click",closeCalc);
+$("calcCloseBtn").addEventListener("click",closeCalc);
 $("calcModal").addEventListener("click",e=>{if(e.target===$("calcModal"))closeCalc()});
-document.querySelectorAll(".calc-key").forEach(b=>b.addEventListener("click",()=>calcPress(b.dataset.k)));
+// Swipe down on the top handle area to close
+(()=>{
+  const grab=$("calcGrab"),sheet=$("calcSheet");let y0=null,dy=0;
+  grab.addEventListener("touchstart",e=>{y0=e.touches[0].clientY;dy=0;sheet.style.transition="none"},{passive:true});
+  grab.addEventListener("touchmove",e=>{if(y0===null)return;dy=Math.max(0,e.touches[0].clientY-y0);sheet.style.transform=`translateY(${dy}px)`},{passive:true});
+  grab.addEventListener("touchend",()=>{if(y0===null)return;sheet.style.transition="";y0=null;if(dy>80)closeCalc();else sheet.style.transform=""});
+})();
+document.querySelectorAll(".calc-key").forEach(b=>b.addEventListener("click",()=>{if(navigator.vibrate)navigator.vibrate(8);calcPress(b.dataset.k)}));
 $("calcUse").addEventListener("click",()=>{
   const v=calcEval(calcExpr);
   if(isNaN(v)||v<=0){showToast("වලංගු බරක් ගණනය කරන්න.");return}
@@ -322,7 +342,7 @@ $("calcUse").addEventListener("click",()=>{
   closeCalc();$("collectionKg").focus();
 });
 document.addEventListener("keydown",e=>{
-  if(!calcOpen())return;
+  if(!calcIsOpen)return;
   if(e.key==="Escape"){closeCalc();return}
   let k=null;
   if(/^[0-9]$/.test(e.key))k=e.key;
@@ -334,5 +354,4 @@ document.addEventListener("keydown",e=>{
   else if(e.key.toLowerCase()==="c")k="C";
   if(k){e.preventDefault();calcPress(k)}
 });
-
 if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
