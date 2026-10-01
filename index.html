@@ -45,7 +45,7 @@
           <article class="stat"><span>මෙම මාසයේ වටිනාකම</span><strong id="monthValue">රු. 0.00</strong></article>
           <article class="stat"><span>ලියාපදිංචි ගොවීන්</span><strong id="farmerCount">0</strong></article>
         </div>
-        <div class="panel"><h2>අද දළු එකතු කිරීම්</h2><div class="table-wrap"><table><thead><tr><th>වේලාව</th><th>ගොවියා</th><th>බර (kg)</th><th>මිල/kg</th><th>මුළු මුදල</th></tr></thead><tbody id="todayRows"></tbody></table></div></div>
+        <div class="panel"><h2>අද දළු එකතු කිරීම්</h2><div class="table-wrap"><table><thead><tr><th>වේලාව</th><th>ගොවියා</th><th>බර (kg)</th></tr></thead><tbody id="todayRows"></tbody></table></div></div>
       </section>
 
       <section id="page-farmers" class="page hidden">
@@ -76,8 +76,7 @@
           <label>දිනය<input id="collectionDate" type="date" required></label>
           <label>ගොවියා<select id="collectionFarmer" required><option value="">ගොවියා තෝරන්න</option></select></label>
           <label>බර (කිලෝග්‍රෑම්)<input id="collectionKg" type="number" min="0.01" step="0.01" required></label>
-          <label>කිලෝවක ස්ථාවර මිල (රු.)<input id="collectionPrice" type="number" readonly></label>
-          <div class="calc-box full"><span>ගෙවිය යුතු දළු වටිනාකම</span><strong id="collectionTotal">රු. 0.00</strong></div>
+          <p class="muted full">කිලෝවක මිල මාසය අවසානයේ තීරණය කරනු ලැබේ. දැන් සටහන් කරන්නේ බර පමණි.</p>
           <label class="full">සටහන (අවශ්‍ය නම්)<input id="collectionNote"></label>
           <button class="btn btn-primary full" type="submit">දළු එකතු කිරීම සුරකින්න</button>
           <p id="collectionMsg" class="full message"></p>
@@ -146,11 +145,18 @@
         <h1>පද්ධති සැකසුම්</h1>
         <form id="settingsForm" class="panel form-grid">
           <label>ව්‍යාපාරයේ නම<input id="businessName" required></label>
-          <label>ස්ථාවර දළු මිල (රු./kg)<input id="fixedPrice" type="number" min="0" step="0.01" required></label>
           <label>දුරකථන අංකය<input id="businessPhone"></label>
           <label>ලිපිනය<input id="businessAddress"></label>
           <button class="btn btn-primary full" type="submit">සැකසුම් සුරකින්න</button>
           <p id="settingsMsg" class="full message"></p>
+        </form>
+        <form id="priceForm" class="panel form-grid owner-only">
+          <h2 class="full">මාසික දළු මිල (මාසය අවසානයේ තීරණය කරන)</h2>
+          <label>මාසය<input id="priceMonth" type="month" required></label>
+          <label>කිලෝවක මිල (රු./kg)<input id="monthPrice" type="number" min="0.01" step="0.01" required></label>
+          <button class="btn btn-primary full" type="submit">මිල සුරකින්න</button>
+          <p id="priceMsg" class="full message"></p>
+          <div class="table-wrap full"><table><thead><tr><th>මාසය</th><th>කිලෝවක මිල</th></tr></thead><tbody id="priceRows"></tbody></table></div>
         </form>
         <div class="panel"><h2>පද්ධතියේ පරිශීලකයන්</h2><p>නව පරිශීලකයන් Firebase Authentication තුළ හිමිකරු විසින් නිර්මාණය කර, Firestore හි <code>users</code> එකතුවේ එම UID සඳහා <code>role</code> ලෙස <code>owner</code> හෝ <code>collector</code> යොදන්න. විස්තර README හි ඇත.</p></div>
       </section>

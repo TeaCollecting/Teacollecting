@@ -28,17 +28,19 @@ service cloud.firestore {
       allow create, update: if isOwner();
       allow delete: if false;
     }
+    match /monthlyPrices/{month} {
+      allow read: if staff();
+      allow create, update: if isOwner()
+        && request.resource.data.pricePerKg is number
+        && request.resource.data.pricePerKg > 0;
+      allow delete: if false;
+    }
     match /collections/{collectionId} {
       allow read: if staff();
       allow create: if staff()
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.kg is number
-        && request.resource.data.kg > 0
-        && request.resource.data.pricePerKg is number
-        && request.resource.data.total >= request.resource.data.kg * request.resource.data.pricePerKg - 0.01
-        && request.resource.data.total <= request.resource.data.kg * request.resource.data.pricePerKg + 0.01
-        && request.resource.data.pricePerKg ==
-          get(/databases/$(database)/documents/settings/main).data.fixedPrice;
+        && request.resource.data.kg > 0;
       // Keep collection records immutable; corrections should be handled by owner through a documented adjustment workflow.
       allow update, delete: if false;
     }

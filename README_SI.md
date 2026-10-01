@@ -27,7 +27,7 @@
 7. Authentication → Users තුළ හිමිකරුගේ email/password ගිණුම සාදන්න.
 8. Firestore හි `users` collection එක සාදන්න. Document ID එක හිමිකරුගේ Firebase Auth UID විය යුතුය. එහි field එකක් ලෙස `role` = `owner` (string) දමන්න.
 9. සේවක ගිණුමක් සාදා එහි UID සඳහා `users/{UID}` document එකක් `role` = `collector` ලෙස සාදන්න. සේවකයන්ට හිමිකරුගේ role එක ලබා නොදෙන්න.
-10. පළමු login එකෙන් පසු සැකසුම් පිටුවේ ව්‍යාපාරයේ නම සහ ස්ථාවර කිලෝ මිල සුරකින්න.
+10. පළමු login එකෙන් පසු සැකසුම් පිටුවේ ව්‍යාපාරයේ නම සුරකින්න. කිලෝවක මිල සෑම මාසයක අවසානයේම සැකසුම් පිටුවේ "මාසික දළු මිල" යටතේ ඇතුළත් කරන්න (මිල ඇතුළත් කළ පසු පමණක් මාසික ගෙවීම් ගණනය කළ හැක).
 
 **වැදගත්:** `users` role documents සාදන්න/වෙනස් කරන්න Firebase Console හරහා පමණක් කරන්න. යෙදුමෙන් role වෙනස් කිරීමට ඉඩ නොදෙන්න. Firebase Admin SDK/service account key එක browser code එකට කිසිවිටෙක දමන්න එපා.
 
@@ -50,10 +50,11 @@
 ## 4. දත්ත ආකෘතිය
 
 - `farmers`: `code`, `name`, `phone`, `address`, `active`, `createdBy`
-- `collections`: `date`, `farmerId`, `kg`, `pricePerKg`, `total`, `note`, `createdBy`
+- `collections`: `date`, `farmerId`, `kg`, `note`, `createdBy` (මිල නැත; මාසය අවසානයේ ගණනය කෙරේ)
+- `monthlyPrices/{YYYY-MM}`: `pricePerKg`
 - `payments`: `farmerId`, `month` (YYYY-MM), `kg`, `gross`, `advance`, `deductions`, `paidAmount`, `balance`
 - `inventory`: `type: dispatch`, `date`, `kg`, `destination`, `note`, `createdBy`
-- `settings/main`: `businessName`, `fixedPrice`, `businessPhone`, `businessAddress`
+- `settings/main`: `businessName`, `businessPhone`, `businessAddress`
 - `users/{Firebase Auth UID}`: `role: owner` හෝ `collector`
 
 ## 5. වැදගත් ගිණුම්කරණ සහ ආරක්ෂක සීමා
