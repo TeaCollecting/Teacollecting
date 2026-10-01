@@ -59,6 +59,7 @@ function renderAll(){
   renderDashboard();renderFarmers();renderSettlementRows();renderInventory();renderReport();renderPrices();
 }
 function renderPrices(){
+  if(!$("priceMonth")||!$("monthPrice")||!$("priceRows"))return;
   if(!$("priceMonth").value)$("priceMonth").value=monthNow();
   $("monthPrice").value=priceForMonth($("priceMonth").value)||"";
   $("priceRows").innerHTML=Object.keys(monthlyPrices).sort().reverse().map(m=>`<tr><td>${escapeHtml(m)}</td><td>${money(monthlyPrices[m])}</td></tr>`).join("")||'<tr><td colspan="2">මිල ඇතුළත් කර නැත.</td></tr>';
@@ -193,14 +194,14 @@ onAuthStateChanged(auth,async user=>{
   try{
     const profile=await getDoc(doc(db,"users",user.uid));
     if(!profile.exists()||!["owner","collector"].includes(profile.data().role)){await signOut(auth);$("loginError").textContent="මෙම ගිණුමට පද්ධති අවසර ලබා දී නැත. හිමිකරු අමතන්න.";return}
-    role=profile.data().role;$("loginView").classList.add("hidden");$("appView").classList.remove("hidden");$("userBox").classList.remove("hidden");
+    role=profile.data().role;document.body.classList.toggle("role-owner",role==="owner");$("loginView").classList.add("hidden");$("appView").classList.remove("hidden");$("userBox").classList.remove("hidden");
     fillMonthOptions();["collectionDate","dispatchDate","settlePaidDate"].forEach(dateInput);dateInput("reportFrom");dateInput("reportTo");
     await loadAll();
   }catch(e){console.error(e);showToast("දත්ත ලබාගත නොහැක. Firebase සැකසුම් හා ආරක්ෂක නීති පරීක්ෂා කරන්න.");}
 });
 document.querySelectorAll(".tab").forEach(btn=>btn.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b===btn));document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));$("page-"+btn.dataset.page).classList.remove("hidden")}));
 $("farmerSearch").addEventListener("input",renderFarmers);
-$("priceMonth").addEventListener("change",()=>{$("monthPrice").value=priceForMonth($("priceMonth").value)||""});
+$("priceMonth")?.addEventListener("change",()=>{$("monthPrice").value=priceForMonth($("priceMonth").value)||""});
 $("farmerForm").addEventListener("submit",e=>{e.preventDefault();if(!requireOwner())return;withBusy(e.submitter,async()=>{
   const code=$("farmerCode").value.trim(),name=$("farmerName").value.trim();
   if(farmers.some(f=>f.code.toLowerCase()===code.toLowerCase()))throw Error("මෙම ගොවි අංකය දැනටමත් භාවිතා වේ.");
@@ -236,7 +237,7 @@ $("settingsForm").addEventListener("submit",e=>{e.preventDefault();if(!requireOw
   await setDoc(doc(db,"settings","main"),{...settings,updatedBy:currentUser.uid,updatedAt:serverTimestamp()});
   showMessage("settingsMsg","සැකසුම් සුරැකුණි.");await loadAll();
 })});
-$("priceForm").addEventListener("submit",e=>{e.preventDefault();if(!requireOwner())return;withBusy(e.submitter,async()=>{
+$("priceForm")?.addEventListener("submit",e=>{e.preventDefault();if(!requireOwner())return;withBusy(e.submitter,async()=>{
   const month=$("priceMonth").value,price=num($("monthPrice").value);
   if(!/^\d{4}-\d{2}$/.test(month))throw Error("මාසය තෝරන්න.");
   if(price<=0)throw Error("කිලෝවක මිල ශුන්‍යයට වඩා වැඩි විය යුතුය.");
