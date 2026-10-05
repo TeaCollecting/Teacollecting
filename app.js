@@ -259,6 +259,7 @@ function calcRender(){
   $("calcPreview").textContent=(hasOp&&!calcDone&&!isNaN(v))?"= "+calcFmt(v):"";
 }
 function calcPress(k){
+  clearTimeout(calcCloseTimer);
   if(calcDone){if(/[\d.]/.test(k))calcExpr="";calcDone=false}
   const tok=calcExpr.split(/[+\-*/]/).pop(),last=calcExpr.slice(-1);
   if(k==="C")calcExpr="";
@@ -276,11 +277,29 @@ function calcPress(k){
     if(isNaN(v)){if(calcExpr){$("calcPreview").textContent="";$("calcDisplay").textContent="දෝෂයකි";calcExpr="";}return}
     calcHist.push({expr:calcSym(calcExpr),res:calcFmt(v)});if(calcHist.length>5)calcHist.shift();renderCalcHist();
     $("calcPreview").textContent=calcSym(calcExpr)+" =";calcExpr=calcFmt(v);calcDone=true;
-    $("calcDisplay").textContent=calcExpr;calcPop();return;
+    $("calcDisplay").textContent=calcExpr;calcPop();calcAfterEquals(v);return;
   }
   calcRender();
 }
-let calcIsOpen=false,calcHist=[];
+let calcIsOpen=false,calcHist=[],calcCloseTimer=null,calcAuto=true;
+try{calcAuto=localStorage.getItem("teaPosCalcAuto")!=="0"}catch{}
+$("calcAutoClose").checked=calcAuto;
+$("calcAutoClose").addEventListener("change",e=>{calcAuto=e.target.checked;try{localStorage.setItem("teaPosCalcAuto",calcAuto?"1":"0")}catch{}});
+// Any tap inside the calculator cancels a pending auto pop-down (so you can keep calculating)
+$("calcSheet").addEventListener("pointerdown",()=>clearTimeout(calcCloseTimer),true);
+// After "=": show the answer briefly, then pop the calculator down
+function calcAfterEquals(v){
+  if(!calcAuto)return;
+  clearTimeout(calcCloseTimer);
+  calcCloseTimer=setTimeout(()=>{
+    if(!calcIsOpen)return;
+    const r=Math.round(v*100)/100,onCollect=!$("page-collect").classList.contains("hidden"),fill=onCollect&&r>0;
+    if(fill)$("collectionKg").value=String(r);
+    closeCalc();
+    showToast("ප්‍රතිඵලය: "+calcFmt(v)+" kg"+(fill?" — බර ක්ෂේත්‍රයට යොදා ඇත":""));
+    if(navigator.clipboard)navigator.clipboard.writeText(calcFmt(v)).catch(()=>{});
+  },1100);
+}
 function calcPop(){const d=$("calcDisplay");d.classList.remove("pop");void d.offsetWidth;d.classList.add("pop")}
 // Quick tare chips: subtract the bag weight from the current total (module scope, so no inline onclick)
 document.querySelectorAll(".calc-chip[data-tare]").forEach(b=>b.addEventListener("click",()=>{
@@ -300,6 +319,7 @@ function openCalc(){
   calcIsOpen=true;$("calcSheet").style.transform="";calcRender();renderCalcHist();
 }
 function closeCalc(){
+  clearTimeout(calcCloseTimer);
   if(!calcIsOpen)return;calcIsOpen=false;
   const o=$("calcModal");o.classList.remove("show");$("calcSheet").style.transform="";
   setTimeout(()=>{if(!calcIsOpen)o.classList.add("hidden")},250);
@@ -308,13 +328,6 @@ $("calcFab").addEventListener("click",openCalc);
 $("closeCalc").addEventListener("click",closeCalc);
 $("calcCloseBtn").addEventListener("click",closeCalc);
 $("calcModal").addEventListener("click",e=>{if(e.target===$("calcModal"))closeCalc()});
-// Swipe down on the top handle area to close
-(()=>{
-  const grab=$("calcGrab"),sheet=$("calcSheet");let y0=null,dy=0;
-  grab.addEventListener("touchstart",e=>{y0=e.touches[0].clientY;dy=0;sheet.style.transition="none"},{passive:true});
-  grab.addEventListener("touchmove",e=>{if(y0===null)return;dy=Math.max(0,e.touches[0].clientY-y0);sheet.style.transform=`translateY(${dy}px)`},{passive:true});
-  grab.addEventListener("touchend",()=>{if(y0===null)return;sheet.style.transition="";y0=null;if(dy>80)closeCalc();else sheet.style.transform=""});
-})();
 document.querySelectorAll(".calc-key").forEach(b=>b.addEventListener("click",()=>{if(navigator.vibrate)navigator.vibrate(8);calcPress(b.dataset.k)}));
 $("calcUse").addEventListener("click",()=>{
   const v=calcEval(calcExpr);

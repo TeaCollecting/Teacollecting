@@ -230,33 +230,36 @@
   </div>
   <div id="calcModal" class="calc-overlay hidden" role="dialog" aria-modal="true" aria-label="ගණකය">
     <div id="calcSheet" class="calc-sheet">
-      <div class="calc-grab" id="calcGrab">
-        <div class="calc-handle"></div>
-        <div class="calc-head"><span>🧮 ගණකය<small>දළු බර ඉක්මනින් ගණනය කරන්න</small></span><button id="closeCalc" class="calc-x" type="button" aria-label="වසන්න">✕</button></div>
+      <div class="calc-titlebar" id="calcGrab">
+        <span class="calc-appicon">🧮</span><span class="calc-title">ගණකය · Modern Calculator</span>
+        <button id="closeCalc" class="calc-x" type="button" aria-label="වසන්න">✕</button>
       </div>
-      <div class="calc-screen">
-        <span class="calc-unit">kg</span>
-        <div id="calcHistory" class="calc-history"></div>
-        <div id="calcPreview" class="calc-preview"></div>
-        <div id="calcDisplay" class="calc-display">0</div>
-      </div>
-      <div class="calc-chips-label">මල්ලේ බර අඩු කරන්න (ඉක්මන් බොත්තම්)</div>
-      <div class="calc-chips">
-        <button type="button" class="calc-chip" data-tare="1.0">🛍️ මල්ලේ බර −1.0</button>
-        <button type="button" class="calc-chip" data-tare="1.5">🛍️ මල්ලේ බර −1.5</button>
-        <button type="button" class="calc-chip" data-tare="2.0">🛍️ මල්ලේ බර −2.0</button>
-        <button type="button" class="calc-chip reset" id="calcReset">↺ මුල සිට</button>
-      </div>
-      <div class="calc-keys">
-        <button class="calc-key fn" data-k="C">C</button><button class="calc-key fn" data-k="B">⌫</button><button class="calc-key fn" data-k="%">%</button><button class="calc-key op" data-k="/">÷</button>
-        <button class="calc-key" data-k="7">7</button><button class="calc-key" data-k="8">8</button><button class="calc-key" data-k="9">9</button><button class="calc-key op" data-k="*">×</button>
-        <button class="calc-key" data-k="4">4</button><button class="calc-key" data-k="5">5</button><button class="calc-key" data-k="6">6</button><button class="calc-key op" data-k="-">−</button>
-        <button class="calc-key" data-k="1">1</button><button class="calc-key" data-k="2">2</button><button class="calc-key" data-k="3">3</button><button class="calc-key op" data-k="+">+</button>
-        <button class="calc-key zero" data-k="0">0</button><button class="calc-key" data-k=".">.</button><button class="calc-key eq" data-k="=">=</button>
-      </div>
-      <div class="calc-actions">
-        <button id="calcUse" class="btn btn-primary" type="button">⚖️ බරට යොදන්න</button>
-        <button id="calcCloseBtn" class="btn btn-light" type="button">වසන්න</button>
+      <div class="calc-body">
+        <div class="calc-screen">
+          <span class="calc-unit">kg</span>
+          <button class="calc-key calc-back" data-k="B" type="button" aria-label="Backspace">⌫</button>
+          <div id="calcHistory" class="calc-history"></div>
+          <div id="calcPreview" class="calc-preview"></div>
+          <div id="calcDisplay" class="calc-display">0</div>
+        </div>
+        <div class="calc-chips">
+          <button type="button" class="calc-chip" data-tare="1.0">🛍️ මල්ලේ බර −1.0</button>
+          <button type="button" class="calc-chip" data-tare="1.5">🛍️ මල්ලේ බර −1.5</button>
+          <button type="button" class="calc-chip" data-tare="2.0">🛍️ මල්ලේ බර −2.0</button>
+          <button type="button" class="calc-chip reset" id="calcReset">↺ මුල සිට</button>
+        </div>
+        <div class="calc-keys">
+          <button class="calc-key" data-k="7">7</button><button class="calc-key" data-k="8">8</button><button class="calc-key" data-k="9">9</button><button class="calc-key op" data-k="+">+</button>
+          <button class="calc-key" data-k="4">4</button><button class="calc-key" data-k="5">5</button><button class="calc-key" data-k="6">6</button><button class="calc-key op" data-k="-">−</button>
+          <button class="calc-key" data-k="1">1</button><button class="calc-key" data-k="2">2</button><button class="calc-key" data-k="3">3</button><button class="calc-key op" data-k="*">×</button>
+          <button class="calc-key" data-k="0">0</button><button class="calc-key" data-k=".">.</button><button class="calc-key clr" data-k="C">C</button><button class="calc-key op" data-k="/">÷</button>
+          <button class="calc-key eq" data-k="=">=</button>
+        </div>
+        <label class="calc-auto"><input type="checkbox" id="calcAutoClose" checked> = ඔබූ පසු ගණකය ස්වයංක්‍රීයව වසන්න</label>
+        <div class="calc-actions">
+          <button id="calcUse" class="btn btn-primary" type="button">⚖️ බරට යොදන්න</button>
+          <button id="calcCloseBtn" class="btn btn-light" type="button">වසන්න</button>
+        </div>
       </div>
     </div>
   </div>
