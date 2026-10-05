@@ -51,3 +51,11 @@ tfoot th{background:#e7f2ea;color:#176b45}
 .calc-auto{display:flex!important;align-items:center;gap:8px!important;color:#b8c9bf;font-size:.8rem;margin-top:14px;cursor:pointer}.calc-auto input{width:auto}
 .calc-actions{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;margin-top:12px}.calc-actions .btn{padding:14px;font-weight:600;border-radius:12px;font-size:1rem}
 @media print{.calc-fab,.calc-overlay{display:none!important}}
+
+/* ===== Site footer (logo) – shown on login and every page ===== */
+body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;width:100%}
+.site-footer{flex-shrink:0;text-align:center;padding:26px 16px 96px;margin-top:24px;background:#fff;border-top:1px solid #e0e9e3;color:#6d7e74;font-size:.88rem}
+.foot-logo{display:inline-block}.foot-logo img{display:block;width:min(340px,80vw);height:auto;margin:0 auto}
+.foot-contact{margin-top:10px;line-height:1.8}.foot-contact a{color:#176b45;text-decoration:none}.foot-contact a:hover{text-decoration:underline}
+.foot-app{margin-top:6px;font-size:.8rem;opacity:.85}
+@media print{.site-footer{display:none!important}}
