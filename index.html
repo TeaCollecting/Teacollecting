@@ -53,15 +53,27 @@
       <section id="page-farmers" class="page hidden">
         <h1>ගොවි කළමනාකරණය</h1>
         <form id="farmerForm" class="panel form-grid">
-          <h2 class="full">නව ගොවියකු ලියාපදිංචි කිරීම</h2>
+          <input type="hidden" id="farmerEditId">
+          <h2 id="farmerFormTitle" class="full">නව ගොවියකු ලියාපදිංචි කිරීම</h2>
           <label>ගොවි අංකය<input id="farmerCode" required placeholder="F-0001"></label>
           <label>ගොවියාගේ නම<input id="farmerName" required></label>
           <label>දුරකථන අංකය<input id="farmerPhone" inputmode="tel"></label>
+          <label>ජාතික හැඳුනුම්පත් අංකය<input id="farmerNic"></label>
           <label>ලිපිනය / ගම<input id="farmerAddress"></label>
+          <label>මාර්ගය / ප්‍රදේශය<input id="farmerRoute" placeholder="උදා: ගම්පහ මාර්ගය"></label>
+          <label>ඉඩම (අක්කර)<input id="farmerLand" type="number" min="0" step="0.01"></label>
+          <label>ලියාපදිංචි දිනය<input id="farmerJoined" type="date"></label>
+          <label>බැංකුව<input id="farmerBank"></label>
+          <label>බැංකු ගිණුම් අංකය<input id="farmerAccount" inputmode="numeric"></label>
+          <label>තත්ත්වය<select id="farmerActive"><option value="yes">සක්‍රීය</option><option value="no">අක්‍රීය</option></select></label>
+          <label>සටහන<input id="farmerNote"></label>
           <button class="btn btn-primary full" type="submit">ගොවියා සුරකින්න</button>
+          <button id="farmerCancelEdit" class="btn btn-light full hidden" type="button">සංස්කරණය අවලංගු කරන්න</button>
           <p id="farmerMsg" class="full message"></p>
         </form>
-        <div class="panel"><h2>ගොවීන්ගේ ලැයිස්තුව</h2><input id="farmerSearch" placeholder="නම හෝ ගොවි අංකය සොයන්න"><div class="table-wrap"><table><thead><tr><th>අංකය</th><th>නම</th><th>දුරකථනය</th><th>ලිපිනය</th><th></th><th class="owner-only"></th></tr></thead><tbody id="farmerRows"></tbody></table></div></div>
+        <div class="panel"><h2>ගොවීන්ගේ ලැයිස්තුව</h2>
+          <div class="toolbar"><input id="farmerSearch" placeholder="නම, අංකය, ප්‍රදේශය හෝ දුරකථනය සොයන්න"><button id="farmerExportCsv" class="btn btn-secondary owner-only" type="button">ගොවි ලැයිස්තුව CSV</button></div>
+          <div class="table-wrap"><table><thead><tr><th>අංකය</th><th>නම</th><th>දුරකථනය</th><th>මාර්ගය</th><th>ලිපිනය</th><th>තත්ත්වය</th><th></th><th class="owner-only"></th></tr></thead><tbody id="farmerRows"></tbody></table></div></div>
       </section>
 
       <section id="page-collect" class="page hidden">
@@ -132,15 +144,46 @@
 
       <section id="page-reports" class="page hidden">
         <h1>වාර්තා</h1>
+        <div class="panel">
+          <h2>කාල සීමාව</h2>
+          <div class="chips-row">
+            <button type="button" class="chip rep-range" data-range="today">අද</button>
+            <button type="button" class="chip rep-range" data-range="week">දින 7</button>
+            <button type="button" class="chip rep-range" data-range="month">මේ මාසය</button>
+            <button type="button" class="chip rep-range" data-range="lastmonth">පෙර මාසය</button>
+            <button type="button" class="chip rep-range" data-range="year">මේ වසර</button>
+            <button type="button" class="chip rep-range" data-range="all">සියල්ල</button>
+          </div>
+          <div class="form-grid">
+            <label>ආරම්භක දිනය<input id="reportFrom" type="date"></label>
+            <label>අවසන් දිනය<input id="reportTo" type="date"></label>
+            <label>ගොවියා<select id="reportFarmer"><option value="">සියලුම ගොවීන්</option></select></label>
+            <label>මාර්ගය / ප්‍රදේශය<select id="reportRoute"><option value="">සියලුම මාර්ග / ප්‍රදේශ</option></select></label>
+            <label>වාර්තා ආකෘතිය<select id="reportGroup"><option value="detail">සවිස්තරාත්මක (එක් එක් එකතු කිරීම)</option><option value="farmer">ගොවියා අනුව සාරාංශය</option><option value="date">දිනය අනුව</option><option value="month">මාසය අනුව</option><option value="route">මාර්ගය / ප්‍රදේශය අනුව</option></select></label>
+            <label>පිළිවෙල<select id="reportSort"><option value="dateDesc">අලුත්ම මුලින් / Z→A</option><option value="dateAsc">පරණම මුලින්</option><option value="kgDesc">වැඩිම බර මුලින්</option><option value="name">නම අනුව</option></select></label>
+            <label class="full">වාර්තා මාතෘකාව (මුද්‍රණයට)<input id="reportTitle" placeholder="උදා: ජනවාරි මාසික දළු වාර්තාව"></label>
+            <label id="reportZeroWrap" class="full check hidden"><input id="reportZero" type="checkbox"> දළු නොදුන් ගොවීන් ද ඇතුළත් කරන්න</label>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>පෙන්විය යුතු තීරු</h2><button id="reportColsReset" class="btn btn-light" type="button">පෙරනිමියට</button></div>
+          <div id="reportCols" class="rep-cols"></div>
+        </div>
         <div class="panel form-grid">
-          <label>ආරම්භක දිනය<input id="reportFrom" type="date"></label>
-          <label>අවසන් දිනය<input id="reportTo" type="date"></label>
-          <button id="runReport" class="btn btn-secondary" type="button">වාර්තාව පෙන්වන්න</button>
+          <h2 class="full">සුරැකි වාර්තා සැකසුම්</h2>
+          <label>සුරැකි වාර්තාවක් තෝරන්න<select id="reportPreset"><option value="">— සුරැකි වාර්තා —</option></select></label>
+          <label>නව සැකසුමට නමක්<input id="reportPresetName" placeholder="උදා: සතිපතා මාර්ග වාර්තාව"></label>
+          <button id="reportPresetSave" class="btn btn-secondary" type="button">මෙම සැකසුම සුරකින්න</button>
+          <button id="reportPresetDelete" class="btn btn-light" type="button">තෝරාගත් සැකසුම මකන්න</button>
+          <p class="muted full">සුරැකි සැකසුම් මෙම උපාංගයේ / බ්‍රවුසරයේ පමණක් ගබඩා වේ.</p>
+        </div>
+        <div class="panel form-grid">
+          <button id="runReport" class="btn btn-secondary" type="button">වාර්තාව නැවුම් කරන්න</button>
           <button id="exportCsv" class="btn btn-primary" type="button">CSV / Excel සඳහා බාගන්න</button>
-          <button id="printReport" class="btn btn-light" type="button">වාර්තාව මුද්‍රණය / PDF</button>
+          <button id="printReport" class="btn btn-light full" type="button">වාර්තාව මුද්‍රණය / PDF</button>
         </div>
         <div id="reportSummary" class="cards"></div>
-        <div class="panel"><h2>දළු එකතු කිරීම් වාර්තාව</h2><div class="table-wrap"><table><thead><tr><th>දිනය</th><th>ගොවි අංකය</th><th>ගොවියා</th><th>බර (kg)</th><th>මිල/kg</th><th>වටිනාකම</th><th>සටහන</th></tr></thead><tbody id="reportRows"></tbody></table></div></div>
+        <div class="panel"><h2>වාර්තාව</h2><div class="table-wrap"><table><thead id="reportHead"></thead><tbody id="reportRows"></tbody><tfoot id="reportFoot"></tfoot></table></div></div>
       </section>
 
       <section id="page-settings" class="page hidden">
@@ -176,6 +219,13 @@
       <div id="farmerQrCode" class="qr-code-box"></div>
       <p class="muted">මෙම QR Code එක POS පද්ධතිය තුළ ගොවියා හඳුනාගැනීමට පමණක් භාවිත වේ.</p>
       <button id="printFarmerQr" class="btn btn-primary" type="button">QR හැඳුනුම්පත මුද්‍රණය</button>
+    </div>
+  </div>
+  <div id="farmerModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="ගොවි විස්තර">
+    <div class="modal-card profile-card">
+      <button id="closeFarmerModal" class="btn btn-light modal-close" type="button" aria-label="වසන්න">✕</button>
+      <div id="farmerProfile"></div>
+      <button id="printFarmerProfile" class="btn btn-primary" type="button">විස්තර පත්‍රය මුද්‍රණය</button>
     </div>
   </div>
   <div id="calcModal" class="calc-overlay hidden" role="dialog" aria-modal="true" aria-label="ගණකය">

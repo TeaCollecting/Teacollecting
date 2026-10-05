@@ -51,7 +51,7 @@ async function loadAll(){
 function renderAll(){
   $("userLabel").textContent=(currentUser?.email||"")+" · "+(role==="owner"?"හිමිකරු":"දළු එකතු කරන්නා");
   document.body.classList.toggle("role-owner",role==="owner");
-  const fopts='<option value="">ගොවියා තෝරන්න</option>'+farmers.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(f=>`<option value="${f.id}">${escapeHtml(f.code)} — ${escapeHtml(f.name)}</option>`).join("");
+  const fopts='<option value="">ගොවියා තෝරන්න</option>'+farmers.filter(f=>f.active!==false).sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(f=>`<option value="${f.id}">${escapeHtml(f.code)} — ${escapeHtml(f.name)}</option>`).join("");
   $("collectionFarmer").innerHTML=fopts;$("settlementFarmer").innerHTML=fopts;
   $("businessName").value=settings.businessName||"";
   $("businessPhone").value=settings.businessPhone||"";
@@ -73,12 +73,6 @@ function renderDashboard(){
   $("farmerCount").textContent=farmers.length;
   $("todayRows").innerHTML=todayRows.map(c=>`<tr><td>${escapeHtml(c.createdAtText||c.date)}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${num(c.kg).toFixed(2)}</td></tr>`).join("")||'<tr><td colspan="3">අද දළු එකතු කිරීම් නැත.</td></tr>';
 }
-function renderFarmers(){
-  const term=($("farmerSearch").value||"").toLowerCase();
-  $("farmerRows").innerHTML=farmers.filter(f=>(f.name+" "+f.code+" "+(f.phone||"")).toLowerCase().includes(term)).map(f=>`<tr><td>${escapeHtml(f.code)}</td><td>${escapeHtml(f.name)}</td><td>${escapeHtml(f.phone)}</td><td>${escapeHtml(f.address)}</td><td><button class="btn btn-secondary qr-farmer-btn" type="button" data-farmer-id="${escapeHtml(f.id)}">QR / මුද්‍රණය</button></td><td class="owner-only"><button class="btn btn-light del-farmer-btn" type="button" data-farmer-id="${escapeHtml(f.id)}">මකන්න</button></td></tr>`).join("")||'<tr><td colspan="6">ගොවීන් නැත.</td></tr>';
-  document.querySelectorAll(".qr-farmer-btn").forEach(btn=>btn.addEventListener("click",()=>showFarmerQr(btn.dataset.farmerId)));
-  if(!$("farmerCode").value)$("farmerCode").value=nextFarmerCode();
-}
 function renderSettlementRows(){
   $("settlementRows").innerHTML=paymentsData.map(p=>`<tr><td>${escapeHtml(p.month)}</td><td>${escapeHtml(farmerName(p.farmerId))}</td><td>${num(p.kg).toFixed(2)}</td><td>${money(p.gross)}</td><td>${money(p.paidAmount)}</td><td>${money(p.balance)}</td></tr>`).join("")||'<tr><td colspan="6">ගෙවීම් සටහන් නැත.</td></tr>';
 }
@@ -87,15 +81,6 @@ function renderInventory(){
   const dispatched=inventoryData.filter(i=>i.type==="dispatch").reduce((s,i)=>s+num(i.kg),0);
   $("stockCollected").textContent=collected.toLocaleString()+" kg";$("stockDispatched").textContent=dispatched.toLocaleString()+" kg";$("stockBalance").textContent=(collected-dispatched).toLocaleString()+" kg";
   $("dispatchRows").innerHTML=inventoryData.map(i=>`<tr><td>${escapeHtml(i.date)}</td><td>${escapeHtml(i.destination)}</td><td>${num(i.kg).toFixed(2)}</td><td>${escapeHtml(i.note)}</td></tr>`).join("")||'<tr><td colspan="4">යැවීම් සටහන් නැත.</td></tr>';
-}
-function reportRows(){
-  const from=$("reportFrom").value,to=$("reportTo").value;
-  return collectionsData.filter(c=>(!from||c.date>=from)&&(!to||c.date<=to));
-}
-function renderReport(){
-  const rows=reportRows(),kg=rows.reduce((s,c)=>s+num(c.kg),0),value=rows.reduce((s,c)=>s+valueOf(c),0),unpriced=rows.filter(c=>!priceForDate(c.date)).length;
-  $("reportSummary").innerHTML=`<article class="stat"><span>එකතු කිරීම්</span><strong>${rows.length}</strong></article><article class="stat"><span>මුළු බර</span><strong>${kg.toLocaleString()} kg</strong></article><article class="stat"><span>මුළු වටිනාකම</span><strong>${money(value)}${unpriced?" *":""}</strong></article><article class="stat"><span>ගොවීන්</span><strong>${new Set(rows.map(r=>r.farmerId)).size}</strong></article>`;
-  $("reportRows").innerHTML=rows.map(c=>`<tr><td>${escapeHtml(c.date)}</td><td>${escapeHtml(farmers.find(f=>f.id===c.farmerId)?.code||"")}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${num(c.kg).toFixed(2)}</td><td>${priceForDate(c.date)?money(priceForDate(c.date)):"—"}</td><td>${priceForDate(c.date)?money(valueOf(c)):"—"}</td><td>${escapeHtml(c.note)}</td></tr>`).join("")||'<tr><td colspan="7">මෙම කාලයට දත්ත නැත.</td></tr>';
 }
 function fillMonthOptions(){
   const opts=[];const d=new Date();for(let n=0;n<18;n++){const x=new Date(d.getFullYear(),d.getMonth()-n,1);opts.push(x.toLocaleDateString("en-CA").slice(0,7))}
@@ -128,11 +113,6 @@ function settlementPrint(){
   if(!settlementCalc)return;
   const f=farmers.find(x=>x.id===settlementCalc.farmerId)||{},advance=num($("settleAdvance").value),deductions=num($("settleDeductions").value),paid=num($("settlePaid").value),balance=settlementCalc.gross-advance-deductions-paid;
   printable("මාසික ගෙවීම් පත්‍රය",`<h1>${escapeHtml(settings.businessName)}</h1><p>${escapeHtml(settings.businessAddress)} ${escapeHtml(settings.businessPhone)}</p><h2>ගොවි මාසික ගෙවීම් පත්‍රය</h2><p>මාසය: ${escapeHtml(settlementCalc.month)}</p><p>ගොවි අංකය: ${escapeHtml(f.code)} | නම: ${escapeHtml(f.name)}</p><p>මුළු දළු: ${settlementCalc.kg.toFixed(2)} kg</p><table><tr><th>විස්තරය</th><th>මුදල</th></tr><tr><td>දළු වටිනාකම</td><td>${money(settlementCalc.gross)}</td></tr><tr><td>අත්තිකාරම්</td><td>${money(advance)}</td></tr><tr><td>වෙනත් අඩු කිරීම්</td><td>${money(deductions)}</td></tr><tr><td>මෙවර ගෙවූ මුදල</td><td>${money(paid)}</td></tr></table><p class="total">ඉතිරි ශේෂය: ${money(balance)}</p><p>ගෙවූ දිනය: ${escapeHtml($("settlePaidDate").value)}</p><p>අත්සන: __________________</p>`);
-}
-function exportCsv(){
-  const rows=reportRows();const data=[["දිනය","ගොවි අංකය","ගොවියා","බර kg","මිල/kg","මුළු වටිනාකම","සටහන"],...rows.map(c=>[c.date,farmers.find(f=>f.id===c.farmerId)?.code||"",farmerName(c.farmerId),c.kg,priceForDate(c.date)||"",priceForDate(c.date)?valueOf(c):"",c.note||""])];
-  const csv="\uFEFF"+data.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
-  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`tea-collections-${today()}.csv`;a.click();URL.revokeObjectURL(url);
 }
 async function withBusy(button,fn){button.disabled=true;try{await fn()}catch(e){console.error(e);showToast("දෝෂයක්: "+(e.message||"කරුණාකර සැකසුම් පරීක්ෂා කරන්න."))}finally{button.disabled=false}}
 
@@ -204,12 +184,6 @@ onAuthStateChanged(auth,async user=>{
 document.querySelectorAll(".tab").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
 $("farmerSearch").addEventListener("input",renderFarmers);
 $("priceMonth")?.addEventListener("change",()=>{$("monthPrice").value=priceForMonth($("priceMonth").value)||""});
-$("farmerForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.submitter,async()=>{
-  const code=$("farmerCode").value.trim(),name=$("farmerName").value.trim();
-  if(farmers.some(f=>f.code.toLowerCase()===code.toLowerCase()))throw Error("මෙම ගොවි අංකය දැනටමත් භාවිතා වේ.");
-  await addDoc(collection(db,"farmers"),{code,name,phone:$("farmerPhone").value.trim(),address:$("farmerAddress").value.trim(),active:true,createdAt:serverTimestamp(),createdBy:currentUser.uid});
-  $("farmerForm").reset();showMessage("farmerMsg","ගොවියා සාර්ථකව සුරැකුණි.");await loadAll();
-})});
 $("collectionForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.submitter,async()=>{
   const kg=num($("collectionKg").value),farmerId=$("collectionFarmer").value;
   if(!farmerId||kg<=0)throw Error("ගොවියා සහ බර පරීක්ෂා කරන්න.");
@@ -247,8 +221,6 @@ $("priceForm")?.addEventListener("submit",e=>{e.preventDefault();if(!requireOwne
   await setDoc(doc(db,"monthlyPrices",month),{month,pricePerKg:price,updatedBy:currentUser.uid,updatedAt:serverTimestamp()});
   showMessage("priceMsg",month+" මාසයේ මිල සුරැකුණි.");await loadAll();
 })});
-$("runReport").addEventListener("click",renderReport);$("exportCsv").addEventListener("click",exportCsv);
-$("printReport").addEventListener("click",()=>printable("දළු එකතු කිරීම් වාර්තාව",`<h1>${escapeHtml(settings.businessName)}</h1><h2>දළු එකතු කිරීම් වාර්තාව</h2><p>${escapeHtml($("reportFrom").value)} සිට ${escapeHtml($("reportTo").value)} දක්වා</p><table><tr><th>දිනය</th><th>ගොවියා</th><th>බර kg</th><th>මිල/kg</th><th>වටිනාකම</th></tr>${reportRows().map(c=>`<tr><td>${escapeHtml(c.date)}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${num(c.kg).toFixed(2)}</td><td>${priceForDate(c.date)?money(priceForDate(c.date)):"—"}</td><td>${priceForDate(c.date)?money(valueOf(c)):"—"}</td></tr>`).join("")}</table><p><b>මුළු බර:</b> ${reportRows().reduce((s,c)=>s+num(c.kg),0).toFixed(2)} kg</p><p><b>මුළු වටිනාකම:</b> ${money(reportRows().reduce((s,c)=>s+valueOf(c),0))}</p>`));
 
 function showPage(name){
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
@@ -364,4 +336,234 @@ document.addEventListener("keydown",e=>{
   else if(e.key.toLowerCase()==="c")k="C";
   if(k){e.preventDefault();calcPress(k)}
 });
+
+// =====================================================================
+// Farmer information (full profile, edit, profile view, CSV)
+// =====================================================================
+const FARMER_FORM_TITLE="නව ගොවියකු ලියාපදිංචි කිරීම";
+function renderFarmers(){
+  const term=($("farmerSearch").value||"").toLowerCase();
+  $("farmerRows").innerHTML=farmers.filter(f=>[f.name,f.code,f.phone,f.route,f.address,f.nic].join(" ").toLowerCase().includes(term)).map(f=>`<tr><td>${escapeHtml(f.code)}</td><td>${escapeHtml(f.name)}</td><td>${escapeHtml(f.phone)}</td><td>${escapeHtml(f.route)}</td><td>${escapeHtml(f.address)}</td><td>${f.active===false?'<span class="badge off">අක්‍රීය</span>':'<span class="badge on">සක්‍රීය</span>'}</td><td><button class="btn btn-light view-farmer-btn" type="button" data-farmer-id="${escapeHtml(f.id)}">විස්තර</button> <button class="btn btn-secondary qr-farmer-btn" type="button" data-farmer-id="${escapeHtml(f.id)}">QR</button></td><td class="owner-only"><button class="btn btn-light edit-farmer-btn" type="button" data-farmer-id="${escapeHtml(f.id)}">සංස්කරණය</button> <button class="btn btn-light del-farmer-btn" type="button" data-farmer-id="${escapeHtml(f.id)}">මකන්න</button></td></tr>`).join("")||'<tr><td colspan="8">ගොවීන් නැත.</td></tr>';
+  document.querySelectorAll(".qr-farmer-btn").forEach(btn=>btn.addEventListener("click",()=>showFarmerQr(btn.dataset.farmerId)));
+  if(!$("farmerCode").value&&!$("farmerEditId").value)$("farmerCode").value=nextFarmerCode();
+}
+function resetFarmerForm(){
+  $("farmerForm").reset();$("farmerEditId").value="";$("farmerFormTitle").textContent=FARMER_FORM_TITLE;
+  $("farmerCancelEdit").classList.add("hidden");$("farmerCode").value=nextFarmerCode();
+}
+function startEditFarmer(id){
+  if(!requireOwner())return;
+  const f=farmers.find(x=>x.id===id);if(!f)return;
+  $("farmerEditId").value=f.id;$("farmerFormTitle").textContent="ගොවි විස්තර සංස්කරණය: "+(f.name||"");
+  const set=(k,v)=>{$(k).value=v??""};
+  set("farmerCode",f.code);set("farmerName",f.name);set("farmerPhone",f.phone);set("farmerNic",f.nic);set("farmerAddress",f.address);
+  set("farmerRoute",f.route);set("farmerLand",f.landAcres);set("farmerJoined",f.joinedDate);set("farmerBank",f.bankName);
+  set("farmerAccount",f.bankAccount);set("farmerNote",f.note);$("farmerActive").value=f.active===false?"no":"yes";
+  $("farmerCancelEdit").classList.remove("hidden");$("farmerForm").scrollIntoView({behavior:"smooth",block:"start"});
+}
+$("farmerCancelEdit").addEventListener("click",()=>{resetFarmerForm();showMessage("farmerMsg","")});
+$("farmerForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.submitter||$("farmerForm").querySelector("[type=submit]"),async()=>{
+  const editId=$("farmerEditId").value,code=$("farmerCode").value.trim(),name=$("farmerName").value.trim();
+  if(editId&&!requireOwner())return;
+  if(farmers.some(f=>f.id!==editId&&(f.code||"").toLowerCase()===code.toLowerCase()))throw Error("මෙම ගොවි අංකය දැනටමත් භාවිතා වේ.");
+  const land=$("farmerLand").value.trim();
+  const data={code,name,phone:$("farmerPhone").value.trim(),nic:$("farmerNic").value.trim(),address:$("farmerAddress").value.trim(),route:$("farmerRoute").value.trim(),landAcres:land===""?null:num(land),joinedDate:$("farmerJoined").value||"",bankName:$("farmerBank").value.trim(),bankAccount:$("farmerAccount").value.trim(),note:$("farmerNote").value.trim(),active:$("farmerActive").value!=="no"};
+  if(editId)await setDoc(doc(db,"farmers",editId),{...data,updatedBy:currentUser.uid,updatedAt:serverTimestamp()},{merge:true});
+  else await addDoc(collection(db,"farmers"),{...data,createdAt:serverTimestamp(),createdBy:currentUser.uid});
+  resetFarmerForm();showMessage("farmerMsg",editId?"ගොවි විස්තර යාවත්කාලීන විය.":"ගොවියා සාර්ථකව සුරැකුණි.");await loadAll();
+})});
+function downloadCsv(name,data){
+  const csv="\uFEFF"+data.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
+  const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"})),a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);
+}
+$("farmerExportCsv").addEventListener("click",()=>{
+  if(!requireOwner())return;
+  downloadCsv(`farmers-${today()}.csv`,[["ගොවි අංකය","නම","දුරකථනය","හැඳුනුම්පත් අංකය","ලිපිනය","මාර්ගය/ප්‍රදේශය","ඉඩම (අක්කර)","ලියාපදිංචි දිනය","බැංකුව","ගිණුම් අංකය","තත්ත්වය","සටහන"],
+    ...farmers.slice().sort((a,b)=>(a.code||"").localeCompare(b.code||"")).map(f=>[f.code,f.name,f.phone,f.nic,f.address,f.route,f.landAcres??"",f.joinedDate,f.bankName,f.bankAccount,f.active===false?"අක්‍රීය":"සක්‍රීය",f.note])]);
+});
+// ----- Farmer profile -----
+let profileFarmerId=null;
+function farmerProfileData(f){
+  const cols=collectionsData.filter(c=>c.farmerId===f.id),pays=paymentsData.filter(p=>p.farmerId===f.id),m=monthNow(),owner=role==="owner";
+  const kgAll=cols.reduce((s,c)=>s+num(c.kg),0),kgMonth=cols.filter(c=>(c.date||"").startsWith(m)).reduce((s,c)=>s+num(c.kg),0);
+  const info=[["ගොවි අංකය",f.code],["නම",f.name],["දුරකථනය",f.phone],["ලිපිනය / ගම",f.address],["මාර්ගය / ප්‍රදේශය",f.route],["ඉඩම (අක්කර)",f.landAcres??""],["ලියාපදිංචි දිනය",f.joinedDate],["තත්ත්වය",f.active===false?"අක්‍රීය":"සක්‍රීය"]];
+  if(owner)info.push(["හැඳුනුම්පත් අංකය",f.nic],["බැංකුව",f.bankName],["ගිණුම් අංකය",f.bankAccount]);
+  info.push(["සටහන",f.note]);
+  const stats=[["මුළු දළු (සියල්ල)",kgAll.toFixed(2)+" kg"],["මේ මාසයේ දළු",kgMonth.toFixed(2)+" kg"],["එකතු කිරීම් ගණන",String(cols.length)],["අවසන් එකතු කිරීම",cols[0]?.date||"—"]];
+  if(owner){const gross=pays.reduce((s,p)=>s+num(p.gross),0),paid=pays.reduce((s,p)=>s+num(p.paidAmount),0),adv=pays.reduce((s,p)=>s+num(p.advance),0),bal=pays.reduce((s,p)=>s+num(p.balance),0);
+    stats.push(["ගෙවා නිම කළ මුළු වටිනාකම",money(gross)],["අත්තිකාරම්",money(adv)],["ගෙවූ මුදල",money(paid)],["ඉතිරි ශේෂය",money(bal)])}
+  return {info,stats,recent:cols.slice(0,10)};
+}
+function showFarmerProfile(id){
+  const f=farmers.find(x=>x.id===id);if(!f)return;profileFarmerId=id;
+  const d=farmerProfileData(f),cell=([l,v])=>`<div><span>${escapeHtml(l)}</span><strong>${escapeHtml(v===""||v==null?"—":v)}</strong></div>`;
+  $("farmerProfile").innerHTML=`<h2>${escapeHtml(f.name)} <small class="muted">(${escapeHtml(f.code)})</small></h2><div class="profile-grid">${d.info.map(cell).join("")}</div><h3>සාරාංශය</h3><div class="profile-grid">${d.stats.map(cell).join("")}</div><h3>අවසන් එකතු කිරීම් 10</h3><div class="table-wrap"><table><thead><tr><th>දිනය</th><th>බර (kg)</th><th>සටහන</th></tr></thead><tbody>${d.recent.map(c=>`<tr><td>${escapeHtml(c.date)}</td><td>${num(c.kg).toFixed(2)}</td><td>${escapeHtml(c.note)}</td></tr>`).join("")||'<tr><td colspan="3">එකතු කිරීම් නැත.</td></tr>'}</tbody></table></div>`;
+  $("farmerModal").classList.remove("hidden");
+}
+function closeFarmerProfile(){$("farmerModal").classList.add("hidden");profileFarmerId=null}
+$("closeFarmerModal").addEventListener("click",closeFarmerProfile);
+$("farmerModal").addEventListener("click",e=>{if(e.target===$("farmerModal"))closeFarmerProfile()});
+$("printFarmerProfile").addEventListener("click",()=>{
+  const f=farmers.find(x=>x.id===profileFarmerId);if(!f)return;const d=farmerProfileData(f);
+  const rows=a=>a.map(([l,v])=>`<tr><th>${escapeHtml(l)}</th><td>${escapeHtml(v===""||v==null?"—":v)}</td></tr>`).join("");
+  printable("ගොවි විස්තර",`<h1>${escapeHtml(settings.businessName)}</h1><h2>ගොවි විස්තර පත්‍රය</h2><table>${rows(d.info)}</table><h3>සාරාංශය</h3><table>${rows(d.stats)}</table><h3>අවසන් එකතු කිරීම්</h3><table><tr><th>දිනය</th><th>බර kg</th><th>සටහන</th></tr>${d.recent.map(c=>`<tr><td>${escapeHtml(c.date)}</td><td>${num(c.kg).toFixed(2)}</td><td>${escapeHtml(c.note)}</td></tr>`).join("")}</table>`);
+});
+$("farmerRows").addEventListener("click",e=>{
+  const v=e.target.closest(".view-farmer-btn");if(v){showFarmerProfile(v.dataset.farmerId);return}
+  const ed=e.target.closest(".edit-farmer-btn");if(ed)startEditFarmer(ed.dataset.farmerId);
+});
+
+// =====================================================================
+// Custom report builder
+// =====================================================================
+const REP_KEY="teaPosReportPresets";
+const r2=x=>Math.round(num(x)*100)/100;
+const fOf=c=>farmers.find(f=>f.id===c.farmerId)||{};
+const sumKg=rows=>r2(rows.reduce((s,c)=>s+num(c.kg),0));
+const sumVal=rows=>r2(rows.reduce((s,c)=>s+(priceForDate(c.date)?valueOf(c):0),0));
+// m = modes where the column is available: d=detail, f=per farmer, o=by date/month/route
+const REP_COLS={
+  date:{h:"දිනය",m:"d",d:c=>c.date||""},
+  time:{h:"වේලාව",m:"d",d:c=>c.createdAtText||""},
+  code:{h:"ගොවි අංකය",m:"df",d:c=>fOf(c).code||"",g:g=>g.f.code||""},
+  name:{h:"ගොවියා",m:"df",d:c=>farmerName(c.farmerId),g:g=>g.f.name||"නොදන්නා ගොවියා"},
+  route:{h:"මාර්ගය / ප්‍රදේශය",m:"df",d:c=>fOf(c).route||"",g:g=>g.f.route||""},
+  phone:{h:"දුරකථනය",m:"df",d:c=>fOf(c).phone||"",g:g=>g.f.phone||""},
+  address:{h:"ලිපිනය",m:"df",d:c=>fOf(c).address||"",g:g=>g.f.address||""},
+  nic:{h:"හැඳුනුම්පත් අංකය",m:"f",g:g=>g.f.nic||""},
+  bank:{h:"බැංකුව",m:"f",g:g=>g.f.bankName||""},
+  account:{h:"ගිණුම් අංකය",m:"f",g:g=>g.f.bankAccount||""},
+  land:{h:"ඉඩම (අක්කර)",m:"f",g:g=>g.f.landAcres??""},
+  joined:{h:"ලියාපදිංචි දිනය",m:"f",g:g=>g.f.joinedDate||""},
+  count:{h:"එකතු කිරීම් ගණන",m:"fo",k:"int",sum:1,g:g=>g.rows.length},
+  kg:{h:"බර (kg)",m:"dfo",k:"kg",sum:1,d:c=>r2(c.kg),g:g=>sumKg(g.rows)},
+  avg:{h:"සාමාන්‍ය බර (kg)",m:"fo",k:"kg",g:g=>g.rows.length?r2(sumKg(g.rows)/g.rows.length):0},
+  price:{h:"මිල/kg",m:"d",k:"money",d:c=>priceForDate(c.date)||""},
+  value:{h:"වටිනාකම",m:"dfo",k:"money",sum:1,d:c=>priceForDate(c.date)?valueOf(c):"",g:g=>sumVal(g.rows)},
+  last:{h:"අවසන් දිනය",m:"f",g:g=>g.rows.map(c=>c.date).sort().pop()||""},
+  note:{h:"සටහන",m:"d",d:c=>c.note||""}
+};
+const REP_DEFAULT={d:["date","code","name","kg","price","value","note"],f:["code","name","route","count","kg","value"],o:["count","kg","avg","value"]};
+let repSel=JSON.parse(JSON.stringify(REP_DEFAULT)),repRange="custom";
+const repMode=()=>{const g=$("reportGroup").value;return g==="detail"?"d":g==="farmer"?"f":"o"};
+const fmtCell=(col,v)=>col.k==="kg"?(v===""?"":num(v).toFixed(2)):col.k==="money"?(v===""?"—":money(v)):col.k==="int"?String(v):String(v??"");
+
+function repConfig(){return{from:$("reportFrom").value,to:$("reportTo").value,farmer:$("reportFarmer").value,route:$("reportRoute").value,group:$("reportGroup").value,sort:$("reportSort").value,zero:$("reportZero").checked,title:$("reportTitle").value.trim()}}
+function repRows(cfg){return collectionsData.filter(c=>(!cfg.from||c.date>=cfg.from)&&(!cfg.to||c.date<=cfg.to)&&(!cfg.farmer||c.farmerId===cfg.farmer)&&(!cfg.route||fOf(c).route===cfg.route))}
+
+function buildReport(){
+  const cfg=repConfig(),rows=repRows(cfg),mode=repMode();
+  const keys=Object.keys(REP_COLS).filter(k=>repSel[mode].includes(k)&&REP_COLS[k].m.includes(mode));
+  const labelHead={date:"දිනය",month:"මාසය",route:"මාර්ගය / ප්‍රදේශය"}[cfg.group];
+  const head=(mode==="o"?[labelHead]:[]).concat(keys.map(k=>REP_COLS[k].h));
+  let body=[];
+  if(mode==="d"){
+    const s=rows.slice();
+    if(cfg.sort==="dateAsc")s.sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+    else if(cfg.sort==="kgDesc")s.sort((a,b)=>num(b.kg)-num(a.kg));
+    else if(cfg.sort==="name")s.sort((a,b)=>farmerName(a.farmerId).localeCompare(farmerName(b.farmerId))||(a.date||"").localeCompare(b.date||""));
+    // dateDesc: collectionsData is already newest-first
+    body=s.map(c=>keys.map(k=>{const col=REP_COLS[k],v=col.d(c);return[v,fmtCell(col,v)]}));
+  }else{
+    const groups=new Map();
+    rows.forEach(c=>{
+      const key=cfg.group==="farmer"?c.farmerId:cfg.group==="date"?c.date:cfg.group==="month"?(c.date||"").slice(0,7):(fOf(c).route||"(මාර්ගයක් නැත)");
+      if(!groups.has(key))groups.set(key,{key,label:cfg.group==="farmer"?farmerName(c.farmerId):key,rows:[],f:cfg.group==="farmer"?fOf(c):{}});
+      groups.get(key).rows.push(c);
+    });
+    if(cfg.zero&&cfg.group==="farmer")farmers.forEach(f=>{if(groups.has(f.id)||(cfg.farmer&&f.id!==cfg.farmer)||(cfg.route&&f.route!==cfg.route))return;groups.set(f.id,{key:f.id,label:f.name||"",rows:[],f})});
+    const arr=[...groups.values()];
+    if(cfg.sort==="kgDesc")arr.sort((a,b)=>sumKg(b.rows)-sumKg(a.rows));
+    else if(cfg.sort==="dateDesc")arr.sort((a,b)=>String(b.label).localeCompare(String(a.label)));
+    else arr.sort((a,b)=>String(a.label).localeCompare(String(b.label)));
+    body=arr.map(g=>(mode==="o"?[[g.label,g.label]]:[]).concat(keys.map(k=>{const col=REP_COLS[k],v=col.g(g);return[v,fmtCell(col,v)]})));
+  }
+  const foot=(mode==="o"?[["මුළු එකතුව","මුළු එකතුව"]]:[]).concat(keys.map((k,i)=>{
+    const col=REP_COLS[k];
+    if(col.sum){const idx=head.length-keys.length+i,t=r2(body.reduce((s,r)=>s+num(r[idx][0]),0));return[t,fmtCell(col,t)]}
+    return i===0&&mode!=="o"?["මුළු එකතුව","මුළු එකතුව"]:["",""];
+  }));
+  const farmersN=new Set(rows.map(c=>c.farmerId)).size,kg=sumKg(rows),value=sumVal(rows),unpriced=rows.filter(c=>!priceForDate(c.date)).length;
+  return{cfg,head,body,foot,keys,stats:{n:rows.length,farmersN,kg,value,unpriced}};
+}
+function repFilterText(cfg){
+  const p=[];
+  p.push((cfg.from||"…")+" සිට "+(cfg.to||"…")+" දක්වා");
+  if(cfg.farmer)p.push("ගොවියා: "+farmerName(cfg.farmer));
+  if(cfg.route)p.push("මාර්ගය: "+cfg.route);
+  return p.join(" | ");
+}
+function refreshReportFilters(){
+  const fs=$("reportFarmer"),rs=$("reportRoute"),ps=$("reportPreset"),fv=fs.value,rv=rs.value,pv=ps.value;
+  fs.innerHTML='<option value="">සියලුම ගොවීන්</option>'+farmers.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(f=>`<option value="${escapeHtml(f.id)}">${escapeHtml(f.code)} — ${escapeHtml(f.name)}</option>`).join("");fs.value=fv;
+  const routes=[...new Set(farmers.map(f=>f.route).filter(Boolean))].sort();
+  rs.innerHTML='<option value="">සියලුම මාර්ග / ප්‍රදේශ</option>'+routes.map(r=>`<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");rs.value=rv;
+  ps.innerHTML='<option value="">— සුරැකි වාර්තා —</option>'+Object.keys(repLoadPresets()).sort().map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");ps.value=pv;
+}
+function renderColChecks(){
+  const mode=repMode();
+  $("reportCols").innerHTML=Object.keys(REP_COLS).filter(k=>REP_COLS[k].m.includes(mode)).map(k=>`<label class="rep-col"><input type="checkbox" data-col="${k}" ${repSel[mode].includes(k)?"checked":""}><span>${escapeHtml(REP_COLS[k].h)}</span></label>`).join("");
+  $("reportZeroWrap").classList.toggle("hidden",$("reportGroup").value!=="farmer");
+}
+function renderReport(){
+  refreshReportFilters();renderColChecks();
+  const r=buildReport(),s=r.stats;
+  $("reportSummary").innerHTML=`<article class="stat"><span>එකතු කිරීම්</span><strong>${s.n}</strong></article><article class="stat"><span>ගොවීන් ගණන</span><strong>${s.farmersN}</strong></article><article class="stat"><span>මුළු බර</span><strong>${s.kg.toLocaleString()} kg</strong></article><article class="stat"><span>මුළු වටිනාකම</span><strong>${money(s.value)}${s.unpriced?" *":""}</strong></article>${s.unpriced?`<p class="muted full" style="grid-column:1/-1">* එකතු කිරීම් ${s.unpriced} කට මාසික මිල නැති නිසා වටිනාකම ගණනය නොවේ.</p>`:""}`;
+  if(!r.head.length){$("reportHead").innerHTML="";$("reportRows").innerHTML='<tr><td>අවම වශයෙන් එක් තීරුවක් තෝරන්න.</td></tr>';$("reportFoot").innerHTML="";return}
+  $("reportHead").innerHTML="<tr>"+r.head.map(h=>`<th>${escapeHtml(h)}</th>`).join("")+"</tr>";
+  $("reportRows").innerHTML=r.body.map(row=>"<tr>"+row.map(c=>`<td>${escapeHtml(c[1])}</td>`).join("")+"</tr>").join("")||`<tr><td colspan="${r.head.length}">තෝරාගත් කොන්දේසි වලට දත්ත නැත.</td></tr>`;
+  $("reportFoot").innerHTML=r.body.length?"<tr>"+r.foot.map(c=>`<th>${escapeHtml(c[1])}</th>`).join("")+"</tr>":"";
+}
+function exportReportCsv(){
+  const r=buildReport();if(!r.head.length||!r.body.length){showToast("අපනයනය කිරීමට දත්ත නැත.");return}
+  downloadCsv(`tea-report-${today()}.csv`,[r.head,...r.body.map(row=>row.map(c=>c[0])),r.foot.map(c=>c[0])]);
+}
+function printReportCustom(){
+  const r=buildReport();if(!r.head.length){showToast("තීරු තෝරන්න.");return}
+  const title=r.cfg.title||"දළු එකතු කිරීම් වාර්තාව";
+  printable(title,`<h1>${escapeHtml(settings.businessName)}</h1><h2>${escapeHtml(title)}</h2><p>${escapeHtml(repFilterText(r.cfg))}</p><table><tr>${r.head.map(h=>`<th>${escapeHtml(h)}</th>`).join("")}</tr>${r.body.map(row=>"<tr>"+row.map(c=>`<td>${escapeHtml(c[1])}</td>`).join("")+"</tr>").join("")}<tr>${r.foot.map(c=>`<th>${escapeHtml(c[1])}</th>`).join("")}</tr></table><p>මුළු බර: <b>${r.stats.kg.toFixed(2)} kg</b> | මුළු වටිනාකම: <b>${money(r.stats.value)}</b></p><p>මුද්‍රණ දිනය: ${today()}</p>`);
+}
+// quick date ranges
+function setRange(key){
+  const d=new Date(),iso=x=>x.toLocaleDateString("en-CA"),y=d.getFullYear(),m=d.getMonth();let from="",to=iso(d);
+  if(key==="today")from=to;
+  else if(key==="week"){from=iso(new Date(y,m,d.getDate()-6))}
+  else if(key==="month"){from=iso(new Date(y,m,1))}
+  else if(key==="lastmonth"){from=iso(new Date(y,m-1,1));to=iso(new Date(y,m,0))}
+  else if(key==="year"){from=iso(new Date(y,0,1))}
+  else if(key==="all"){from="";to=""}
+  repRange=key;$("reportFrom").value=from;$("reportTo").value=to;
+  document.querySelectorAll(".rep-range").forEach(b=>b.classList.toggle("active",b.dataset.range===key));
+}
+// saved report layouts (stored in this browser)
+function repLoadPresets(){try{return JSON.parse(localStorage.getItem(REP_KEY)||"{}")}catch{return{}}}
+function repSavePresets(p){try{localStorage.setItem(REP_KEY,JSON.stringify(p));return true}catch{showToast("මෙම බ්‍රවුසරයේ සුරැකිය නොහැක.");return false}}
+$("reportPresetSave").addEventListener("click",()=>{
+  const name=$("reportPresetName").value.trim();if(!name){showToast("වාර්තාවට නමක් ලබා දෙන්න.");return}
+  const c=repConfig(),p=repLoadPresets();
+  p[name]={group:c.group,sort:c.sort,zero:c.zero,title:c.title,farmer:c.farmer,route:c.route,range:repRange,from:c.from,to:c.to,sel:JSON.parse(JSON.stringify(repSel))};
+  if(repSavePresets(p)){$("reportPresetName").value="";refreshReportFilters();$("reportPreset").value=name;showToast("වාර්තා සැකසුම සුරැකුණි.")}
+});
+$("reportPreset").addEventListener("change",()=>{
+  const p=repLoadPresets()[$("reportPreset").value];if(!p)return;
+  $("reportGroup").value=p.group;$("reportSort").value=p.sort;$("reportZero").checked=!!p.zero;$("reportTitle").value=p.title||"";
+  repSel={...JSON.parse(JSON.stringify(REP_DEFAULT)),...p.sel};
+  if(p.range&&p.range!=="custom")setRange(p.range);else{repRange="custom";$("reportFrom").value=p.from||"";$("reportTo").value=p.to||"";document.querySelectorAll(".rep-range").forEach(b=>b.classList.remove("active"))}
+  $("reportFarmer").value=p.farmer||"";$("reportRoute").value=p.route||"";renderReport();
+});
+$("reportPresetDelete").addEventListener("click",()=>{
+  const n=$("reportPreset").value;if(!n||!confirm(`"${n}" සුරැකි වාර්තා සැකසුම මකන්නද?`))return;
+  const p=repLoadPresets();delete p[n];repSavePresets(p);renderReport();
+});
+document.querySelectorAll(".rep-range").forEach(b=>b.addEventListener("click",()=>{setRange(b.dataset.range);renderReport()}));
+$("reportCols").addEventListener("change",e=>{
+  const cb=e.target.closest("input[data-col]");if(!cb)return;const mode=repMode(),k=cb.dataset.col,s=new Set(repSel[mode]);
+  cb.checked?s.add(k):s.delete(k);repSel[mode]=[...s];renderReport();
+});
+["reportFarmer","reportRoute","reportGroup","reportSort","reportZero"].forEach(id=>$(id).addEventListener("change",renderReport));
+$("reportTitle").addEventListener("input",()=>{});
+["reportFrom","reportTo"].forEach(id=>$(id).addEventListener("change",()=>{repRange="custom";document.querySelectorAll(".rep-range").forEach(b=>b.classList.remove("active"));renderReport()}));
+$("runReport").addEventListener("click",renderReport);$("exportCsv").addEventListener("click",exportReportCsv);$("printReport").addEventListener("click",printReportCustom);
+$("reportColsReset").addEventListener("click",()=>{repSel[repMode()]=[...REP_DEFAULT[repMode()]];renderReport()});
+
 if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
