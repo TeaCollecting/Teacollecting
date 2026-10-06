@@ -89,7 +89,9 @@
         <form id="collectionForm" class="panel form-grid">
           <label>දිනය<input id="collectionDate" type="date" required></label>
           <label>ගොවියා<select id="collectionFarmer" required><option value="">ගොවියා තෝරන්න</option></select></label>
-          <label>බර (කිලෝග්‍රෑම්)<input id="collectionKg" type="number" min="0.01" step="0.01" required></label>
+          <label>මුළු බර (කිලෝග්‍රෑම්)<input id="collectionKg" type="number" min="0.01" step="0.01" required></label>
+          <label>මල්ලේ බර / අඩු කිරීම (kg)<input id="collectionDeduct" type="number" min="0" step="0.01" placeholder="0"></label>
+          <div class="calc-box full"><span>ශුද්ධ දළු බර (ගෙවීමට ගණන් ගන්නේ)</span><strong id="collectionNet">0.00 kg</strong></div>
           <p class="muted full">කිලෝවක මිල මාසය අවසානයේ තීරණය කරනු ලැබේ. දැන් සටහන් කරන්නේ බර පමණි.</p>
           <label class="full">සටහන (අවශ්‍ය නම්)<input id="collectionNote"></label>
           <button class="btn btn-primary full" type="submit">දළු එකතු කිරීම සුරකින්න</button>

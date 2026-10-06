@@ -186,12 +186,14 @@ document.querySelectorAll(".tab").forEach(btn=>btn.addEventListener("click",()=>
 $("farmerSearch").addEventListener("input",renderFarmers);
 $("priceMonth")?.addEventListener("change",()=>{$("monthPrice").value=priceForMonth($("priceMonth").value)||""});
 $("collectionForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.submitter,async()=>{
-  const kg=num($("collectionKg").value),farmerId=$("collectionFarmer").value;
-  if(!farmerId||kg<=0)throw Error("ගොවියා සහ බර පරීක්ෂා කරන්න.");
+  const gross=num($("collectionKg").value),deduct=Math.max(0,num($("collectionDeduct").value)),farmerId=$("collectionFarmer").value;
+  const kg=Math.round((gross-deduct)*100)/100;
+  if(!farmerId||gross<=0)throw Error("ගොවියා සහ බර පරීක්ෂා කරන්න.");
+  if(kg<=0)throw Error("අඩු කිරීම මුළු බරට වඩා වැඩිය. අගයන් පරීක්ෂා කරන්න.");
   const date=$("collectionDate").value,now=new Date(),farmerObj=farmers.find(x=>x.id===farmerId);
-  await addDoc(collection(db,"collections"),{date,farmerId,kg,note:$("collectionNote").value.trim(),createdBy:currentUser.uid,createdAt:serverTimestamp(),createdAtText:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"})});
-  $("collectionForm").reset();dateInput("collectionDate");showMessage("collectionMsg","දළු එකතු කිරීම සුරැකුණි.");await loadAll();
-  openReceipt({date,time:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"}),farmer:farmerObj,kg}).catch(console.error);
+  await addDoc(collection(db,"collections"),{date,farmerId,kg,grossKg:gross,deductKg:deduct,note:$("collectionNote").value.trim(),createdBy:currentUser.uid,createdAt:serverTimestamp(),createdAtText:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"})});
+  $("collectionForm").reset();dateInput("collectionDate");updateCollectionNet();showMessage("collectionMsg","දළු එකතු කිරීම සුරැකුණි.");await loadAll();
+  openReceipt({date,time:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"}),farmer:farmerObj,gross,deduct,kg,month:monthSummary(farmerId,date)}).catch(console.error);
 })});
 $("calculateSettlement").addEventListener("click",calculateSettlement);
 ["settleAdvance","settleDeductions","settlePaid"].forEach(id=>$(id).addEventListener("input",updateSettlementBalance));
@@ -641,8 +643,21 @@ async function buildReceiptCanvas(d,paper,withPhone){
   row("නම",safeText(f.name),22,700);
   if(withPhone&&f.phone)row("දුරකථන",safeText(f.phone));
   dash();
-  center("දළු බර",20,400,0);
+  const ded=num(d.deduct);
+  if(ded>0){
+    row("මුළු බර",num(d.gross).toFixed(2)+" kg");
+    row("මල්ලේ බර අඩු කිරීම","- "+ded.toFixed(2)+" kg");
+    y+=2;
+  }
+  center("ශුද්ධ දළු බර",20,400,0);
   center(num(d.kg).toFixed(2)+" kg",54,700,2);
+  if(d.month){
+    dash();
+    center(d.month.month+" මාසය",20,700,2);
+    row("වාර ගණන",String(d.month.visits));
+    if(num(d.month.deduct)>0)row("මල්ලේ අඩු කිරීම් එකතුව",num(d.month.deduct).toFixed(2)+" kg");
+    row("මාසික දළු එකතුව",num(d.month.kg).toFixed(2)+" kg",22,700);
+  }
   dash();
   center("ස්තූතියි!",22,600,2);
   center(RECEIPT_CREDIT,15,400,0);
@@ -698,5 +713,19 @@ function renderTodayCollect(){
 $("todayCollectRows").addEventListener("click",e=>{
   const b=e.target.closest(".receipt-btn");if(!b)return;
   const c=collectionsData.find(x=>x.id===b.dataset.id);if(!c)return;
-  openReceipt({date:c.date,time:c.createdAtText||"",farmer:farmers.find(x=>x.id===c.farmerId),kg:c.kg}).catch(console.error);
+  openReceipt({date:c.date,time:c.createdAtText||"",farmer:farmers.find(x=>x.id===c.farmerId),gross:c.grossKg??c.kg,deduct:c.deductKg||0,kg:c.kg,month:monthSummary(c.farmerId,c.date)}).catch(console.error);
 });
+
+function updateCollectionNet(){
+  const net=Math.round((num($("collectionKg").value)-Math.max(0,num($("collectionDeduct").value)))*100)/100;
+  $("collectionNet").textContent=Math.max(0,net).toFixed(2)+" kg";
+  $("collectionNet").style.color=net<=0&&num($("collectionKg").value)>0?"#b42318":"";
+}
+["collectionKg","collectionDeduct"].forEach(id=>$(id).addEventListener("input",updateCollectionNet));
+$("calcUse").addEventListener("click",()=>setTimeout(updateCollectionNet,0));
+// Monthly running total for the receipt: it starts again from zero every new month automatically.
+function monthSummary(farmerId,date){
+  const m=(date||today()).slice(0,7);
+  const rows=collectionsData.filter(c=>c.farmerId===farmerId&&(c.date||"").startsWith(m));
+  return{month:m,kg:rows.reduce((s,c)=>s+num(c.kg),0),deduct:rows.reduce((s,c)=>s+num(c.deductKg),0),visits:rows.length};
+}
