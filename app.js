@@ -24,6 +24,7 @@ const monthNow = () => today().slice(0,7);
 let currentUser=null, role=null, farmers=[], collectionsData=[], paymentsData=[], inventoryData=[], settings={businessName:"තේ දළු එකතු කිරීම",businessPhone:"",businessAddress:""};
 let settlementCalc=null, monthlyPrices={};
 const priceForMonth=m=>num(monthlyPrices[m]);
+const PRICE_PENDING="මිල තවම නියම වී නැත";
 const priceForDate=d=>priceForMonth((d||"").slice(0,7));
 const valueOf=c=>Math.round(num(c.kg)*priceForDate(c.date)*100)/100;
 
@@ -60,7 +61,7 @@ function renderAll(){
 }
 function renderPrices(){
   if(!$("priceMonth")||!$("monthPrice")||!$("priceRows"))return;
-  if(!$("priceMonth").value)$("priceMonth").value=monthNow();
+  if(!$("priceMonth").value)$("priceMonth").value=pendingPriceMonths()[0]||monthNow();renderPendingPrices();
   $("monthPrice").value=priceForMonth($("priceMonth").value)||"";
   $("priceRows").innerHTML=Object.keys(monthlyPrices).sort().reverse().map(m=>`<tr><td>${escapeHtml(m)}</td><td>${money(monthlyPrices[m])}</td></tr>`).join("")||'<tr><td colspan="2">මිල ඇතුළත් කර නැත.</td></tr>';
 }
@@ -69,10 +70,10 @@ function renderDashboard(){
   const t=today(),m=monthNow(),todayRows=collectionsData.filter(c=>c.date===t),monthRows=collectionsData.filter(c=>(c.date||"").startsWith(m));
   $("todayKg").textContent=todayRows.reduce((s,c)=>s+num(c.kg),0).toLocaleString()+" kg";
   $("monthKg").textContent=monthRows.reduce((s,c)=>s+num(c.kg),0).toLocaleString()+" kg";
-  const mPrice=priceForMonth(m);$("monthValue").textContent=mPrice?money(monthRows.reduce((s,c)=>s+num(c.kg),0)*mPrice):"මිල තීරණය කර නැත";
+  const mPrice=priceForMonth(m);$("monthValue").textContent=mPrice?money(monthRows.reduce((s,c)=>s+num(c.kg),0)*mPrice):PRICE_PENDING;
   $("farmerCount").textContent=farmers.length;
   $("todayRows").innerHTML=todayRows.map(c=>`<tr><td>${escapeHtml(c.createdAtText||c.date)}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${num(c.kg).toFixed(2)}</td></tr>`).join("")||'<tr><td colspan="3">අද දළු එකතු කිරීම් නැත.</td></tr>';
-  renderTodayCollect();
+  renderTodayCollect();renderPriceNote();
 }
 function renderSettlementRows(){
   $("settlementRows").innerHTML=paymentsData.map(p=>`<tr><td>${escapeHtml(p.month)}</td><td>${escapeHtml(farmerName(p.farmerId))}</td><td>${num(p.kg).toFixed(2)}</td><td>${money(p.gross)}</td><td>${money(p.paidAmount)}</td><td>${money(p.balance)}</td></tr>`).join("")||'<tr><td colspan="6">ගෙවීම් සටහන් නැත.</td></tr>';
@@ -85,7 +86,9 @@ function renderInventory(){
 }
 function fillMonthOptions(){
   const opts=[];const d=new Date();for(let n=0;n<18;n++){const x=new Date(d.getFullYear(),d.getMonth()-n,1);opts.push(x.toLocaleDateString("en-CA").slice(0,7))}
-  $("settlementMonth").innerHTML=opts.map(m=>`<option value="${m}">${m}</option>`).join("");$("settlementMonth").value=monthNow();
+  $("settlementMonth").innerHTML=opts.map(m=>`<option value="${m}">${m}${priceForMonth(m)?"":" (මිල නැත)"}</option>`).join("");
+  const sm=priceForMonth(monthNow())?monthNow():(opts.filter(x=>priceForMonth(x)).sort().pop()||monthNow());
+  $("settlementMonth").value=sm;
 }
 function updateSettlementBalance(){
   if(!settlementCalc)return;
@@ -96,7 +99,7 @@ function calculateSettlement(){
   const farmerId=$("settlementFarmer").value,month=$("settlementMonth").value;
   if(!farmerId){showToast("කරුණාකර ගොවියකු තෝරන්න.");return}
   const price=priceForMonth(month);
-  if(!price){$("settlementResult").classList.add("hidden");showToast(month+" මාසය සඳහා කිලෝ මිල තීරණය කර නැත. සැකසුම් පිටුවේ මිල ඇතුළත් කරන්න.");return}
+  if(!price){$("settlementResult").classList.add("hidden");showToast(month+" මාසයේ කිලෝ මිල තවම ඇතුළත් කර නැත. කලින් මාසයක මිල මෙම මාසයට අදාළ නොවේ. සැකසුම් පිටුවේ "+month+" සඳහා මිල ඇතුළත් කරන්න.");return}
   const rows=collectionsData.filter(c=>c.farmerId===farmerId&&(c.date||"").startsWith(month));
   const kg=rows.reduce((s,c)=>s+num(c.kg),0),gross=Math.round(kg*price*100)/100;
   const existing=paymentsData.find(p=>p.farmerId===farmerId&&p.month===month);
@@ -456,14 +459,14 @@ const REP_COLS={
   kg:{h:"බර (kg)",m:"dfo",k:"kg",sum:1,d:c=>r2(c.kg),g:g=>sumKg(g.rows)},
   avg:{h:"සාමාන්‍ය බර (kg)",m:"fo",k:"kg",g:g=>g.rows.length?r2(sumKg(g.rows)/g.rows.length):0},
   price:{h:"මිල/kg",m:"d",k:"money",d:c=>priceForDate(c.date)||""},
-  value:{h:"වටිනාකම",m:"dfo",k:"money",sum:1,d:c=>priceForDate(c.date)?valueOf(c):"",g:g=>sumVal(g.rows)},
+  value:{h:"වටිනාකම",m:"dfo",k:"money",sum:1,d:c=>priceForDate(c.date)?valueOf(c):"",g:g=>g.rows.some(c=>priceForDate(c.date))?sumVal(g.rows):""},
   last:{h:"අවසන් දිනය",m:"f",g:g=>g.rows.map(c=>c.date).sort().pop()||""},
   note:{h:"සටහන",m:"d",d:c=>c.note||""}
 };
 const REP_DEFAULT={d:["date","code","name","kg","price","value","note"],f:["code","name","route","count","kg","value"],o:["count","kg","avg","value"]};
 let repSel=JSON.parse(JSON.stringify(REP_DEFAULT)),repRange="custom";
 const repMode=()=>{const g=$("reportGroup").value;return g==="detail"?"d":g==="farmer"?"f":"o"};
-const fmtCell=(col,v)=>col.k==="kg"?(v===""?"":num(v).toFixed(2)):col.k==="money"?(v===""?"—":money(v)):col.k==="int"?String(v):String(v??"");
+const fmtCell=(col,v)=>col.k==="kg"?(v===""?"":num(v).toFixed(2)):col.k==="money"?(v===""?PRICE_PENDING:money(v)):col.k==="int"?String(v):String(v??"");
 
 function repConfig(){return{from:$("reportFrom").value,to:$("reportTo").value,farmer:$("reportFarmer").value,route:$("reportRoute").value,group:$("reportGroup").value,sort:$("reportSort").value,zero:$("reportZero").checked,title:$("reportTitle").value.trim()}}
 function repRows(cfg){return collectionsData.filter(c=>(!cfg.from||c.date>=cfg.from)&&(!cfg.to||c.date<=cfg.to)&&(!cfg.farmer||c.farmerId===cfg.farmer)&&(!cfg.route||fOf(c).route===cfg.route))}
@@ -497,7 +500,7 @@ function buildReport(){
   }
   const foot=(mode==="o"?[["මුළු එකතුව","මුළු එකතුව"]]:[]).concat(keys.map((k,i)=>{
     const col=REP_COLS[k];
-    if(col.sum){const idx=head.length-keys.length+i,t=r2(body.reduce((s,r)=>s+num(r[idx][0]),0));return[t,fmtCell(col,t)]}
+    if(col.sum){const idx=head.length-keys.length+i,t=r2(body.reduce((s,r)=>s+num(r[idx][0]),0));if(col.k==="money"&&body.every(r=>r[idx][0]===""))return["",fmtCell(col,"")];return[t,fmtCell(col,t)]}
     return i===0&&mode!=="o"?["මුළු එකතුව","මුළු එකතුව"]:["",""];
   }));
   const farmersN=new Set(rows.map(c=>c.farmerId)).size,kg=sumKg(rows),value=sumVal(rows),unpriced=rows.filter(c=>!priceForDate(c.date)).length;
@@ -525,7 +528,7 @@ function renderColChecks(){
 function renderReport(){
   refreshReportFilters();renderColChecks();
   const r=buildReport(),s=r.stats;
-  $("reportSummary").innerHTML=`<article class="stat"><span>එකතු කිරීම්</span><strong>${s.n}</strong></article><article class="stat"><span>ගොවීන් ගණන</span><strong>${s.farmersN}</strong></article><article class="stat"><span>මුළු බර</span><strong>${s.kg.toLocaleString()} kg</strong></article><article class="stat"><span>මුළු වටිනාකම</span><strong>${money(s.value)}${s.unpriced?" *":""}</strong></article>${s.unpriced?`<p class="muted full" style="grid-column:1/-1">* එකතු කිරීම් ${s.unpriced} කට මාසික මිල නැති නිසා වටිනාකම ගණනය නොවේ.</p>`:""}`;
+  $("reportSummary").innerHTML=`<article class="stat"><span>එකතු කිරීම්</span><strong>${s.n}</strong></article><article class="stat"><span>ගොවීන් ගණන</span><strong>${s.farmersN}</strong></article><article class="stat"><span>මුළු බර</span><strong>${s.kg.toLocaleString()} kg</strong></article><article class="stat"><span>මුළු වටිනාකම</span><strong>${s.n&&s.unpriced===s.n?PRICE_PENDING:money(s.value)+(s.unpriced?" *":"")}</strong></article>${s.unpriced?`<p class="muted full" style="grid-column:1/-1">* එකතු කිරීම් ${s.unpriced} කට අදාළ මාසයේ මිල තවම නියම වී නැති නිසා වටිනාකම ගණනය වී නැත. (කලින් මාසයක මිල මෙම මාසයට අදාළ නොවේ. මාසය අවසානයේ මිල ඇතුළත් කළ විට ස්වයංක්‍රීයව ගණනය වේ.)</p>`:""}`;
   if(!r.head.length){$("reportHead").innerHTML="";$("reportRows").innerHTML='<tr><td>අවම වශයෙන් එක් තීරුවක් තෝරන්න.</td></tr>';$("reportFoot").innerHTML="";return}
   $("reportHead").innerHTML="<tr>"+r.head.map(h=>`<th>${escapeHtml(h)}</th>`).join("")+"</tr>";
   $("reportRows").innerHTML=r.body.map(row=>"<tr>"+row.map(c=>`<td>${escapeHtml(c[1])}</td>`).join("")+"</tr>").join("")||`<tr><td colspan="${r.head.length}">තෝරාගත් කොන්දේසි වලට දත්ත නැත.</td></tr>`;
@@ -745,3 +748,19 @@ document.querySelectorAll("table").forEach(t=>{
   let queued=false;
   new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;cardifyTable(t)})}).observe(t,{childList:true,subtree:true});
 });
+
+
+// ===== Monthly price status: each month has its own price, entered at month end =====
+function pendingPriceMonths(){
+  return[...new Set(collectionsData.map(c=>(c.date||"").slice(0,7)).filter(Boolean))].filter(m=>!priceForMonth(m)).sort();
+}
+function renderPendingPrices(){
+  const el=$("pendingPriceMonths");if(!el)return;
+  const p=pendingPriceMonths();
+  el.textContent=p.length?"මිල තවම ඇතුළත් කර නැති මාස: "+p.join(", ")+" (සෑම මාසයකටම වෙන වෙනම මිලක් ඇතුළත් කරන්න)":"දළු එකතු කළ සියලු මාසවල මිල ඇතුළත් කර ඇත.";
+}
+function renderPriceNote(){
+  const el=$("collectPriceNote");if(!el)return;
+  const m=monthNow(),p=priceForMonth(m);
+  el.textContent=p?`${m} මාසයේ කිලෝවක මිල: ${money(p)}.`:`${m} මාසයේ කිලෝවක මිල තවම නියම වී නැත (කලින් මාසයේ මිල මෙම මාසයට අදාළ නොවේ). දැන් සටහන් වන්නේ බර පමණි; මාසය අවසානයේ මිල ඇතුළත් කළ පසු වටිනාකම ගණනය වේ.`;
+}
