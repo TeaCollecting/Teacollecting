@@ -72,6 +72,7 @@ function renderDashboard(){
   const mPrice=priceForMonth(m);$("monthValue").textContent=mPrice?money(monthRows.reduce((s,c)=>s+num(c.kg),0)*mPrice):"මිල තීරණය කර නැත";
   $("farmerCount").textContent=farmers.length;
   $("todayRows").innerHTML=todayRows.map(c=>`<tr><td>${escapeHtml(c.createdAtText||c.date)}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${num(c.kg).toFixed(2)}</td></tr>`).join("")||'<tr><td colspan="3">අද දළු එකතු කිරීම් නැත.</td></tr>';
+  renderTodayCollect();
 }
 function renderSettlementRows(){
   $("settlementRows").innerHTML=paymentsData.map(p=>`<tr><td>${escapeHtml(p.month)}</td><td>${escapeHtml(farmerName(p.farmerId))}</td><td>${num(p.kg).toFixed(2)}</td><td>${money(p.gross)}</td><td>${money(p.paidAmount)}</td><td>${money(p.balance)}</td></tr>`).join("")||'<tr><td colspan="6">ගෙවීම් සටහන් නැත.</td></tr>';
@@ -187,9 +188,10 @@ $("priceMonth")?.addEventListener("change",()=>{$("monthPrice").value=priceForMo
 $("collectionForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.submitter,async()=>{
   const kg=num($("collectionKg").value),farmerId=$("collectionFarmer").value;
   if(!farmerId||kg<=0)throw Error("ගොවියා සහ බර පරීක්ෂා කරන්න.");
-  const date=$("collectionDate").value,now=new Date();
+  const date=$("collectionDate").value,now=new Date(),farmerObj=farmers.find(x=>x.id===farmerId);
   await addDoc(collection(db,"collections"),{date,farmerId,kg,note:$("collectionNote").value.trim(),createdBy:currentUser.uid,createdAt:serverTimestamp(),createdAtText:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"})});
   $("collectionForm").reset();dateInput("collectionDate");showMessage("collectionMsg","දළු එකතු කිරීම සුරැකුණි.");await loadAll();
+  openReceipt({date,time:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"}),farmer:farmerObj,kg}).catch(console.error);
 })});
 $("calculateSettlement").addEventListener("click",calculateSettlement);
 ["settleAdvance","settleDeductions","settlePaid"].forEach(id=>$(id).addEventListener("input",updateSettlementBalance));
@@ -580,3 +582,121 @@ $("runReport").addEventListener("click",renderReport);$("exportCsv").addEventLis
 $("reportColsReset").addEventListener("click",()=>{repSel[repMode()]=[...REP_DEFAULT[repMode()]];renderReport()});
 
 if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
+
+
+// =====================================================================
+// Mini-printer receipt (58mm / 80mm thermal) — preview, PDF, PNG, print
+// Receipt is drawn on a canvas (203 dpi ≈ 8 dots/mm) so Sinhala text is
+// rendered by the browser and looks the same in the PNG, PDF and printout.
+// =====================================================================
+const RECEIPT_CREDIT="Nexora Technologies · 0706562952"; // බිල්පතේ පහළ පේළිය; අවශ්‍ය නැත්නම් "" ලෙස තබන්න
+const RECEIPT_PREF_KEY="teaPos.receiptPrefs";
+const RECEIPT_FONT='"Noto Sans Sinhala","Iskoola Pota","Nirmala UI",Arial,sans-serif';
+let receiptData=null,receiptCanvas=null;
+function receiptPrefs(){try{return{paper:"58",phone:false,...JSON.parse(localStorage.getItem(RECEIPT_PREF_KEY)||"{}")}}catch{return{paper:"58",phone:false}}}
+function saveReceiptPrefs(){try{localStorage.setItem(RECEIPT_PREF_KEY,JSON.stringify({paper:$("receiptPaper").value,phone:$("receiptPhone").checked}))}catch{}}
+async function buildReceiptCanvas(d,paper,withPhone){
+  const W=paper==="80"?576:384,PAD=14,H=2400;
+  try{await Promise.all([document.fonts.load('400 22px "Noto Sans Sinhala"'),document.fonts.load('700 22px "Noto Sans Sinhala"')])}catch{}
+  const tmp=document.createElement("canvas");tmp.width=W;tmp.height=H;
+  const g=tmp.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,W,H);g.fillStyle="#000";g.strokeStyle="#000";g.textBaseline="top";
+  let y=14;
+  const font=(px,w=400)=>{g.font=`${w} ${px}px ${RECEIPT_FONT}`};
+  const graphemes=t=>(typeof Intl!=="undefined"&&Intl.Segmenter)?Array.from(new Intl.Segmenter("si",{granularity:"grapheme"}).segment(t),x=>x.segment):Array.from(t);
+  const wrap=(text,maxW)=>{
+    const out=[];
+    String(text??"").split("\n").forEach(par=>{
+      let line="";
+      par.split(/\s+/).filter(Boolean).forEach(word=>{
+        const t=line?line+" "+word:word;
+        if(g.measureText(t).width<=maxW){line=t;return}
+        if(line){out.push(line);line=""}
+        if(g.measureText(word).width<=maxW){line=word;return}
+        let chunk="";
+        for(const ch of graphemes(word)){if(chunk&&g.measureText(chunk+ch).width>maxW){out.push(chunk);chunk=ch}else chunk+=ch}
+        line=chunk;
+      });
+      out.push(line);
+    });
+    return out.length?out:[""];
+  };
+  const center=(text,px,w=400,gap=4)=>{if(!String(text||"").trim())return;font(px,w);g.textAlign="center";for(const l of wrap(text,W-2*PAD)){g.fillText(l,W/2,y);y+=Math.round(px*1.4)}y+=gap};
+  const dash=()=>{g.setLineDash([7,5]);g.lineWidth=2;g.beginPath();g.moveTo(PAD,y+8);g.lineTo(W-PAD,y+8);g.stroke();g.setLineDash([]);y+=20};
+  const row=(label,value,px=22,w=400)=>{
+    font(px,w);const lw=g.measureText(label).width,vw=g.measureText(value).width;
+    g.textAlign="left";g.fillText(label,PAD,y);
+    if(lw+vw+14<=W-2*PAD){g.textAlign="right";g.fillText(value,W-PAD,y);y+=Math.round(px*1.5)}
+    else{y+=Math.round(px*1.4);g.textAlign="right";for(const l of wrap(value,W-2*PAD)){g.fillText(l,W-PAD,y);y+=Math.round(px*1.4)}y+=4}
+  };
+  const f=d.farmer||{};
+  center(settings.businessName,28,700,2);
+  center(settings.businessAddress,18,400,0);
+  center(settings.businessPhone,18,400,0);
+  y+=4;dash();
+  center("තේ දළු ලදුපත",25,700,2);
+  dash();
+  row("දිනය",safeText(d.date));
+  if(d.time)row("වේලාව",safeText(d.time));
+  row("ගොවි අංකය",safeText(f.code),22,700);
+  row("නම",safeText(f.name),22,700);
+  if(withPhone&&f.phone)row("දුරකථන",safeText(f.phone));
+  dash();
+  center("දළු බර",20,400,0);
+  center(num(d.kg).toFixed(2)+" kg",54,700,2);
+  dash();
+  center("ස්තූතියි!",22,600,2);
+  center(RECEIPT_CREDIT,15,400,0);
+  y+=22;
+  const out=document.createElement("canvas");out.width=W;out.height=Math.ceil(y);
+  out.getContext("2d").drawImage(tmp,0,0);
+  return out;
+}
+async function refreshReceipt(){
+  if(!receiptData)return;
+  receiptCanvas=await buildReceiptCanvas(receiptData,$("receiptPaper").value,$("receiptPhone").checked);
+  $("receiptImg").src=receiptCanvas.toDataURL("image/png");
+}
+async function openReceipt(d){
+  receiptData=d;const p=receiptPrefs();
+  $("receiptPaper").value=p.paper;$("receiptPhone").checked=!!p.phone;
+  $("receiptModal").classList.remove("hidden");
+  await refreshReceipt();
+}
+function closeReceipt(){$("receiptModal").classList.add("hidden");receiptData=null}
+function receiptFileName(ext){
+  const f=receiptData?.farmer||{};
+  return ("receipt-"+(f.code||"farmer")+"-"+(receiptData?.date||today())).replace(/[^\w.-]+/g,"_")+"."+ext;
+}
+function downloadUrl(url,name){const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove()}
+$("closeReceiptModal").addEventListener("click",closeReceipt);
+$("receiptModal").addEventListener("click",e=>{if(e.target===$("receiptModal"))closeReceipt()});
+["receiptPaper","receiptPhone"].forEach(id=>$(id).addEventListener("change",()=>{saveReceiptPrefs();refreshReceipt()}));
+$("receiptPng").addEventListener("click",()=>{
+  if(!receiptCanvas)return;
+  receiptCanvas.toBlob(blob=>{const url=URL.createObjectURL(blob);downloadUrl(url,receiptFileName("png"));setTimeout(()=>URL.revokeObjectURL(url),4000)},"image/png");
+});
+$("receiptPdf").addEventListener("click",()=>{
+  if(!receiptCanvas)return;
+  if(!window.jspdf){showToast("PDF library එක load වී නැත. අන්තර්ජාල සම්බන්ධතාව පරීක්ෂා කරන්න.");return}
+  const pageW=Number($("receiptPaper").value),imgW=receiptCanvas.width/8,imgH=receiptCanvas.height/8,pageH=Math.ceil(imgH+6);
+  const pdf=new window.jspdf.jsPDF({unit:"mm",format:[pageW,pageH],orientation:pageW>pageH?"l":"p"});
+  pdf.addImage(receiptCanvas.toDataURL("image/png"),"PNG",(pageW-imgW)/2,2,imgW,imgH);
+  pdf.save(receiptFileName("pdf"));
+});
+$("receiptPrint").addEventListener("click",()=>{
+  if(!receiptCanvas)return;
+  const w=window.open("","_blank");if(!w){showToast("මුද්‍රණ කවුළුව අවහිර වී ඇත. Browser pop-ups සක්‍රීය කරන්න.");return}
+  const paper=$("receiptPaper").value,imgMm=receiptCanvas.width/8;
+  w.document.write(`<!doctype html><html lang="si"><head><meta charset="utf-8"><title>ලදුපත</title><style>@page{size:${paper}mm auto;margin:0}html,body{margin:0;background:#fff}img{display:block;width:${imgMm}mm;margin:0 auto}@media screen{body{padding:12px;text-align:center}img{margin:0 auto 12px}button{padding:10px 18px;font-size:16px}}@media print{button{display:none}}</style></head><body><img src="${receiptCanvas.toDataURL("image/png")}" alt=""><button onclick="window.print()">🖨️ මුද්‍රණය</button></body></html>`);
+  w.document.close();
+});
+function renderTodayCollect(){
+  const el=$("todayCollectRows");if(!el)return;
+  const rows=collectionsData.filter(c=>c.date===today()).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+  el.innerHTML=rows.map(c=>`<tr><td>${escapeHtml(c.createdAtText||c.date)}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${num(c.kg).toFixed(2)}</td><td><button class="btn btn-secondary receipt-btn" type="button" data-id="${escapeHtml(c.id)}">🧾 ලදුපත</button></td></tr>`).join("")||'<tr><td colspan="4">අද දළු එකතු කිරීම් නැත.</td></tr>';
+}
+$("todayCollectRows").addEventListener("click",e=>{
+  const b=e.target.closest(".receipt-btn");if(!b)return;
+  const c=collectionsData.find(x=>x.id===b.dataset.id);if(!c)return;
+  openReceipt({date:c.date,time:c.createdAtText||"",farmer:farmers.find(x=>x.id===c.farmerId),kg:c.kg}).catch(console.error);
+});

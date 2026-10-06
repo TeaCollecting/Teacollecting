@@ -95,6 +95,7 @@
           <button class="btn btn-primary full" type="submit">දළු එකතු කිරීම සුරකින්න</button>
           <p id="collectionMsg" class="full message"></p>
         </form>
+        <div class="panel"><h2>අද එකතු කිරීම් · ලදුපත නැවත ලබාගන්න</h2><div class="table-wrap"><table><thead><tr><th>වේලාව</th><th>ගොවියා</th><th>බර (kg)</th><th></th></tr></thead><tbody id="todayCollectRows"></tbody></table></div></div>
       </section>
 
       <section id="page-settlements" class="page hidden">
@@ -228,6 +229,22 @@
       <button id="printFarmerProfile" class="btn btn-primary" type="button">විස්තර පත්‍රය මුද්‍රණය</button>
     </div>
   </div>
+  <div id="receiptModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="දළු ලදුපත">
+    <div class="modal-card receipt-card">
+      <button id="closeReceiptModal" class="modal-close btn btn-light" type="button" aria-label="වසන්න">✕</button>
+      <h2>🧾 දළු ලදුපත</h2>
+      <div class="receipt-opts">
+        <label>කඩදාසි පළල<select id="receiptPaper"><option value="58">58mm (කුඩා මුද්‍රකය)</option><option value="80">80mm</option></select></label>
+        <label class="check"><input id="receiptPhone" type="checkbox"> ගොවියාගේ දුරකථන අංකය ද ඇතුළත් කරන්න</label>
+      </div>
+      <div class="receipt-preview"><img id="receiptImg" alt="ලදුපත් පෙරදසුන"></div>
+      <div class="receipt-actions">
+        <button id="receiptPdf" class="btn btn-primary" type="button">📄 PDF බාගන්න</button>
+        <button id="receiptPng" class="btn btn-secondary" type="button">🖼️ PNG බාගන්න</button>
+        <button id="receiptPrint" class="btn btn-light" type="button">🖨️ මුද්‍රණය</button>
+      </div>
+    </div>
+  </div>
   <div id="calcModal" class="calc-overlay hidden" role="dialog" aria-modal="true" aria-label="ගණකය">
     <div id="calcSheet" class="calc-sheet">
       <div class="calc-titlebar" id="calcGrab">
@@ -266,6 +283,7 @@
   <div id="toast" class="toast" aria-live="polite"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

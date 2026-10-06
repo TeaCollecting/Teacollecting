@@ -68,3 +68,11 @@ body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;widt
   .foot-contact{text-align:left}
 }
 @media print{.site-footer{display:none!important}}
+
+/* ===== Mini-printer receipt (58mm / 80mm) ===== */
+.receipt-card{width:min(100%,460px);max-height:94vh;overflow-y:auto}
+.receipt-opts{display:grid;gap:10px;text-align:left;margin:6px 0}
+.receipt-preview{background:#e9efea;border-radius:12px;padding:14px;margin:12px 0;display:flex;justify-content:center;overflow-x:auto}
+.receipt-preview img{display:block;background:#fff;box-shadow:0 2px 10px #0003;max-width:100%;height:auto}
+.receipt-actions{display:flex;flex-wrap:wrap;gap:8px}.receipt-actions .btn{flex:1 1 130px}
+@media print{#receiptModal{display:none!important}}

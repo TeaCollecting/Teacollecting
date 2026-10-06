@@ -1,4 +1,4 @@
-const CACHE = "tea-leaf-pos-v3";
+const CACHE = "tea-leaf-pos-v4";
 const ASSETS = ["./", "./index.html", "./styles.css", "./manifest.json", "./app.js", "./nexora-logo.png"];
 self.addEventListener("install", event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
 self.addEventListener("activate", event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))));
