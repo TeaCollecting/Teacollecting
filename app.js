@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, waitForPendingWrites, collection, doc, getDoc, getDocs, getDocFromCache, getDocsFromCache, addDoc, setDoc, deleteDoc, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // Firebase web-app configuration (project: teacollecting)
 const firebaseConfig = {
@@ -15,7 +15,11 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+// OFFLINE: Firestore keeps a local copy (IndexedDB) and queues writes made without signal.
+// When the signal returns the queued writes are uploaded automatically.
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 const $ = id => document.getElementById(id);
 const money = n => "රු. " + Number(n || 0).toLocaleString("en-LK",{minimumFractionDigits:2,maximumFractionDigits:2});
 const num = n => Number(n || 0);
@@ -28,41 +32,92 @@ const PRICE_PENDING="මිල තවම නියම වී නැත";
 const priceForDate=d=>priceForMonth((d||"").slice(0,7));
 const valueOf=c=>Math.round(num(c.kg)*priceForDate(c.date)*100)/100;
 
+// ===== OFFLINE SUPPORT =====
+let pendingCount = 0, pendingOps = 0, loadSeq = 0, watchingPending = false, refreshTimer = null;
+const OFFLINE_NOTE = " (ඔෆ්ලයින් — සංඥාව ලැබූ පසු ස්වයංක්‍රීයව යවයි)";
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+async function readDocs(ref, cacheOnly) {
+  if (cacheOnly || !navigator.onLine) return getDocsFromCache(ref);
+  try { return await withTimeout(getDocs(ref), 8000); }
+  catch (e) { console.warn("Server read failed, using local copy", e); return getDocsFromCache(ref); }
+}
+async function readDoc(ref, cacheOnly) {
+  if (cacheOnly || !navigator.onLine) { try { return await getDocFromCache(ref); } catch { return null; } }
+  try { return await withTimeout(getDoc(ref), 8000); }
+  catch (e) { try { return await getDocFromCache(ref); } catch { return null; } }
+}
+// Fire-and-forget writes: saved locally at once, uploaded when online.
+function track(p) {
+  pendingOps++; updateNetBadge();
+  p.catch(e => { console.error(e); showToast("සර්වරයට යැවීම අසාර්ථකයි: " + (e.code || e.message)); })
+   .finally(() => { pendingOps = Math.max(0, pendingOps - 1); updateNetBadge(); refreshSoon(); });
+}
+const qAdd = (...a) => { track(addDoc(...a)); };
+const qSet = (...a) => { track(setDoc(...a)); };
+const qDelete = (...a) => { track(deleteDoc(...a)); };
+function refreshSoon() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => { if (currentUser) loadAll().catch(console.warn); }, 600);
+}
+function watchPending() {
+  if (watchingPending || !pendingCount) return;
+  watchingPending = true;
+  waitForPendingWrites(db).then(() => { watchingPending = false; refreshSoon(); }).catch(() => { watchingPending = false; });
+}
+const netStyle = document.createElement("style");
+netStyle.textContent = ".net-badge{font-size:.8rem;padding:6px 10px;border-radius:999px;background:#e0f2e7;color:#176b45;white-space:nowrap}.net-badge.off{background:#fdecea;color:#b42318}.net-badge.wait{background:#fff4d6;color:#8a5a00}";
+document.head.appendChild(netStyle);
+const netBadge = document.createElement("div");
+netBadge.id = "netBadge"; netBadge.className = "net-badge";
+(document.querySelector(".topactions") || document.body).prepend(netBadge);
+function updateNetBadge() {
+  const n = Math.max(pendingCount, pendingOps), off = !navigator.onLine;
+  netBadge.className = "net-badge" + (off ? " off" : n ? " wait" : "");
+  netBadge.textContent = off ? "🔴 ඔෆ්ලයින්" + (n ? ` · යැවීමට ${n}` : "") : n ? `⏳ යවමින්... ${n}` : "🟢 සමමුහුර්තයි";
+}
+window.addEventListener("online", () => { updateNetBadge(); showToast("අන්තර්ජාලය ලැබුණි. දත්ත යවමින්..."); refreshSoon(); });
+window.addEventListener("offline", () => { updateNetBadge(); showToast("අන්තර්ජාලය නැත. සටහන් දුරකථනයේ සුරැකේ."); });
+updateNetBadge();
+
 function showToast(message){const el=$("toast");el.textContent=message;el.style.display="block";setTimeout(()=>el.style.display="none",3000)}
-function showMessage(id,message,isError=false){$(id).textContent=message;$(id).style.color=isError?"#b42318":"#176b45"}
+function showMessage(id,message,isError=false){if(!isError&&!navigator.onLine&&/සුරැකුණි/.test(message))message+=OFFLINE_NOTE;$(id).textContent=message;$(id).style.color=isError?"#b42318":"#176b45"}
 function dateInput(id){$(id).value=today()}
 function safeText(v){return String(v??"")}
 function farmerName(id){return farmers.find(f=>f.id===id)?.name || "නොදන්නා ගොවියා"}
 function requireOwner(){if(role!=="owner"){showToast("මෙම ක්‍රියාව හිමිකරුට පමණි.");return false}return true}
 
-async function loadAll(){
-  const [f,c,p,i,s,mp] = await Promise.all([
-    getDocs(collection(db,"farmers")), getDocs(collection(db,"collections")),
-    getDocs(collection(db,"payments")), getDocs(collection(db,"inventory")),
-    getDoc(doc(db,"settings","main")), getDocs(collection(db,"monthlyPrices"))
+async function loadAll(opts = {}) {
+  const co = !!opts.cacheOnly, seq = ++loadSeq;
+  const [f,c,p,i,st,mp] = await Promise.all([
+    readDocs(collection(db,"farmers"),co), readDocs(collection(db,"collections"),co),
+    readDocs(collection(db,"payments"),co), readDocs(collection(db,"inventory"),co),
+    readDoc(doc(db,"settings","main"),co), readDocs(collection(db,"monthlyPrices"),co)
   ]);
-  farmers=f.docs.map(d=>({id:d.id,...d.data()}));
-  collectionsData=c.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  paymentsData=p.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.month||"").localeCompare(a.month||""));
-  inventoryData=i.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  if(s.exists()) settings={...settings,...s.data()};
+  if (seq !== loadSeq) return; // a newer load has started; ignore this older result
+  const dd = d => ({id:d.id,...d.data({serverTimestamps:"estimate"})});
+  farmers=f.docs.map(dd);
+  collectionsData=c.docs.map(dd).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  paymentsData=p.docs.map(dd).sort((a,b)=>(b.month||"").localeCompare(a.month||""));
+  inventoryData=i.docs.map(dd).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  if(st&&st.exists()) settings={...settings,...st.data()};
   monthlyPrices={};mp.docs.forEach(d=>{monthlyPrices[d.id]=num(d.data().pricePerKg)});
+  pendingCount=[f,c,p,i,mp].reduce((n,x)=>n+x.docs.filter(d=>d.metadata.hasPendingWrites).length,0)+((st&&st.metadata&&st.metadata.hasPendingWrites)?1:0);
+  updateNetBadge();watchPending();
   renderAll();
 }
 function renderAll(){
   $("userLabel").textContent=(currentUser?.email||"")+" · "+(role==="owner"?"හිමිකරු":"දළු එකතු කරන්නා");
   document.body.classList.toggle("role-owner",role==="owner");
   const fopts='<option value="">ගොවියා තෝරන්න</option>'+farmers.filter(f=>f.active!==false).sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(f=>`<option value="${f.id}">${escapeHtml(f.code)} — ${escapeHtml(f.name)}</option>`).join("");
-  $("collectionFarmer").innerHTML=fopts;$("settlementFarmer").innerHTML=fopts;
-  $("businessName").value=settings.businessName||"";
-  $("businessPhone").value=settings.businessPhone||"";
-  $("businessAddress").value=settings.businessAddress||"";
+  const keepC=$("collectionFarmer").value,keepS=$("settlementFarmer").value;$("collectionFarmer").innerHTML=fopts;$("settlementFarmer").innerHTML=fopts;if(keepC)$("collectionFarmer").value=keepC;if(keepS)$("settlementFarmer").value=keepS;
+  const setIdle=(id,v)=>{if(document.activeElement!==$(id))$(id).value=v||""};
+  setIdle("businessName",settings.businessName);setIdle("businessPhone",settings.businessPhone);setIdle("businessAddress",settings.businessAddress);
   renderDashboard();renderFarmers();renderSettlementRows();renderInventory();renderReport();renderPrices();
 }
 function renderPrices(){
   if(!$("priceMonth")||!$("monthPrice")||!$("priceRows"))return;
   if(!$("priceMonth").value)$("priceMonth").value=pendingPriceMonths()[0]||monthNow();renderPendingPrices();
-  $("monthPrice").value=priceForMonth($("priceMonth").value)||"";
+  if(document.activeElement!==$("monthPrice"))$("monthPrice").value=priceForMonth($("priceMonth").value)||"";
   $("priceRows").innerHTML=Object.keys(monthlyPrices).sort().reverse().map(m=>`<tr><td>${escapeHtml(m)}</td><td>${money(monthlyPrices[m])}</td></tr>`).join("")||'<tr><td colspan="2">මිල ඇතුළත් කර නැත.</td></tr>';
 }
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
@@ -172,14 +227,24 @@ $("stopScanner").addEventListener("click",stopQrScanner);
 
 
 $("loginForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.submitter,async()=>{ $("loginError").textContent="";await signInWithEmailAndPassword(auth,$("email").value.trim(),$("password").value); })});
-$("logoutBtn").addEventListener("click",()=>signOut(auth));
+$("logoutBtn").addEventListener("click",()=>{
+  const n=Math.max(pendingCount,pendingOps);
+  if(n>0&&!confirm(`තවමත් සර්වරයට නොයැවූ සටහන් ${n} ක් ඇත. දැන් ඉවත් වුවහොත්, ඒවා යවන්නේ නැවත ලොග් වී අන්තර්ජාලය ඇති විට පමණි. ඉවත් වන්නද?`))return;
+  signOut(auth);
+});
 onAuthStateChanged(auth,async user=>{
   currentUser=user;
   if(!user){$("loginView").classList.remove("hidden");$("appView").classList.add("hidden");$("userBox").classList.add("hidden");return}
   try{
-    const profile=await getDoc(doc(db,"users",user.uid));
-    if(!profile.exists()||!["owner","collector"].includes(profile.data().role)){await signOut(auth);$("loginError").textContent="මෙම ගිණුමට පද්ධති අවසර ලබා දී නැත. හිමිකරු අමතන්න.";return}
-    role=profile.data().role;document.body.classList.toggle("role-owner",role==="owner");$("loginView").classList.add("hidden");$("appView").classList.remove("hidden");$("userBox").classList.remove("hidden");
+    const ps=await readDoc(doc(db,"users",user.uid),false);
+    let userRole=null;
+    if(ps){userRole=ps.exists()?ps.data().role:null;if(userRole){try{localStorage.setItem("tea_role_"+user.uid,userRole)}catch{}}}
+    else{try{userRole=localStorage.getItem("tea_role_"+user.uid)}catch{}} // offline and not cached: last known role (UI only; Firestore rules still enforce access)
+    if(!["owner","collector"].includes(userRole)){
+      if(ps){await signOut(auth);$("loginError").textContent="මෙම ගිණුමට පද්ධති අවසර ලබා දී නැත. හිමිකරු අමතන්න."}
+      else{$("loginView").classList.remove("hidden");$("appView").classList.add("hidden");$("loginError").textContent="ඔෆ්ලයින් අවස්ථාවේ පළමු login එකට අන්තර්ජාලය අවශ්‍යයි."}
+      return}
+    role=userRole;document.body.classList.toggle("role-owner",role==="owner");$("loginView").classList.add("hidden");$("appView").classList.remove("hidden");$("userBox").classList.remove("hidden");
     fillMonthOptions();["collectionDate","dispatchDate","settlePaidDate"].forEach(dateInput);dateInput("reportFrom");dateInput("reportTo");
     showPage(role==="owner"?"dashboard":"collect");
     await loadAll();
@@ -194,8 +259,8 @@ $("collectionForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.
   if(!farmerId||gross<=0)throw Error("ගොවියා සහ බර පරීක්ෂා කරන්න.");
   if(kg<=0)throw Error("අඩු කිරීම මුළු බරට වඩා වැඩිය. අගයන් පරීක්ෂා කරන්න.");
   const date=$("collectionDate").value,now=new Date(),farmerObj=farmers.find(x=>x.id===farmerId);
-  await addDoc(collection(db,"collections"),{date,farmerId,kg,grossKg:gross,deductKg:deduct,note:$("collectionNote").value.trim(),createdBy:currentUser.uid,createdAt:serverTimestamp(),createdAtText:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"})});
-  $("collectionForm").reset();dateInput("collectionDate");updateCollectionNet();showMessage("collectionMsg","දළු එකතු කිරීම සුරැකුණි.");await loadAll();
+  qAdd(collection(db,"collections"),{date,farmerId,kg,grossKg:gross,deductKg:deduct,note:$("collectionNote").value.trim(),createdBy:currentUser.uid,createdAt:serverTimestamp(),createdAtText:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"})});
+  $("collectionForm").reset();dateInput("collectionDate");updateCollectionNet();showMessage("collectionMsg","දළු එකතු කිරීම සුරැකුණි.");await loadAll({cacheOnly:true});
   openReceipt({date,time:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"}),farmer:farmerObj,gross,deduct,kg,month:monthSummary(farmerId,date)}).catch(console.error);
 })});
 $("calculateSettlement").addEventListener("click",calculateSettlement);
@@ -205,28 +270,28 @@ $("saveSettlement").addEventListener("click",()=>{if(!requireOwner()||!settlemen
   if(advance+deductions>settlementCalc.gross)throw Error("අත්තිකාරම් සහ අඩු කිරීම් මුළු දළු වටිනාකමට වඩා වැඩිය.");
   if(paidAmount<0||paidAmount>settlementCalc.gross-advance-deductions)throw Error("ගෙවන මුදල පරීක්ෂා කරන්න.");
   const payload={farmerId:settlementCalc.farmerId,month:settlementCalc.month,kg:settlementCalc.kg,pricePerKg:settlementCalc.price,gross:settlementCalc.gross,advance,deductions,paidAmount,balance,paidDate:$("settlePaidDate").value,note:$("settleNote").value.trim(),updatedBy:currentUser.uid,updatedAt:serverTimestamp()};
-  if(settlementCalc.existing)await setDoc(doc(db,"payments",settlementCalc.existing.id),payload);else await addDoc(collection(db,"payments"),{...payload,createdBy:currentUser.uid,createdAt:serverTimestamp()});
-  showMessage("settlementMsg","මාසික ගෙවීම් සුරැකුණි.");await loadAll();calculateSettlement();
+  if(settlementCalc.existing)qSet(doc(db,"payments",settlementCalc.existing.id),payload);else qAdd(collection(db,"payments"),{...payload,createdBy:currentUser.uid,createdAt:serverTimestamp()});
+  showMessage("settlementMsg","මාසික ගෙවීම් සුරැකුණි.");await loadAll({cacheOnly:true});calculateSettlement();
 })});
 $("printSettlement").addEventListener("click",settlementPrint);
 $("dispatchForm").addEventListener("submit",e=>{e.preventDefault();if(!requireOwner())return;withBusy(e.submitter,async()=>{
   const kg=num($("dispatchKg").value),current=collectionsData.reduce((s,c)=>s+num(c.kg),0)-inventoryData.reduce((s,i)=>s+num(i.kg),0);
   if(kg<=0||kg>current)throw Error("යැවූ බර පවතින තොගයට වඩා වැඩිය.");
-  await addDoc(collection(db,"inventory"),{type:"dispatch",date:$("dispatchDate").value,kg,destination:$("dispatchDestination").value.trim(),note:$("dispatchNote").value.trim(),createdBy:currentUser.uid,createdAt:serverTimestamp()});
-  $("dispatchForm").reset();dateInput("dispatchDate");showMessage("dispatchMsg","දළු යැවීම සුරැකුණි.");await loadAll();
+  qAdd(collection(db,"inventory"),{type:"dispatch",date:$("dispatchDate").value,kg,destination:$("dispatchDestination").value.trim(),note:$("dispatchNote").value.trim(),createdBy:currentUser.uid,createdAt:serverTimestamp()});
+  $("dispatchForm").reset();dateInput("dispatchDate");showMessage("dispatchMsg","දළු යැවීම සුරැකුණි.");await loadAll({cacheOnly:true});
 })});
 $("settingsForm").addEventListener("submit",e=>{e.preventDefault();if(!requireOwner())return;withBusy(e.submitter,async()=>{
   settings={businessName:$("businessName").value.trim(),businessPhone:$("businessPhone").value.trim(),businessAddress:$("businessAddress").value.trim()};
-  await setDoc(doc(db,"settings","main"),{...settings,updatedBy:currentUser.uid,updatedAt:serverTimestamp()});
-  showMessage("settingsMsg","සැකසුම් සුරැකුණි.");await loadAll();
+  qSet(doc(db,"settings","main"),{...settings,updatedBy:currentUser.uid,updatedAt:serverTimestamp()});
+  showMessage("settingsMsg","සැකසුම් සුරැකුණි.");await loadAll({cacheOnly:true});
 })});
 $("priceForm")?.addEventListener("submit",e=>{e.preventDefault();if(!requireOwner())return;withBusy(e.submitter,async()=>{
   const month=$("priceMonth").value,price=num($("monthPrice").value);
   if(!/^\d{4}-\d{2}$/.test(month))throw Error("මාසය තෝරන්න.");
   if(price<=0)throw Error("කිලෝවක මිල ශුන්‍යයට වඩා වැඩි විය යුතුය.");
   if(paymentsData.some(p=>p.month===month))throw Error(month+" මාසයට ගෙවීම් දැනටමත් සුරැකී ඇති නිසා මිල වෙනස් කළ නොහැක.");
-  await setDoc(doc(db,"monthlyPrices",month),{month,pricePerKg:price,updatedBy:currentUser.uid,updatedAt:serverTimestamp()});
-  showMessage("priceMsg",month+" මාසයේ මිල සුරැකුණි.");await loadAll();
+  qSet(doc(db,"monthlyPrices",month),{month,pricePerKg:price,updatedBy:currentUser.uid,updatedAt:serverTimestamp()});
+  showMessage("priceMsg",month+" මාසයේ මිල සුරැකුණි.");await loadAll({cacheOnly:true});
 })});
 
 function showPage(name){
@@ -248,7 +313,7 @@ $("farmerRows").addEventListener("click",e=>{
   let msg=`"${f.name}" (${f.code}) ගොවියා මකා දමන්නද?`;
   if(cols||pays)msg+=`\n\nඅවවාදයයි: මෙම ගොවියාට දළු එකතු කිරීම් ${cols} ක් සහ ගෙවීම් ${pays} ක් ඇත. ඒවා ඉතිරි වන අතර වාර්තාවල "නොදන්නා ගොවියා" ලෙස පෙනේ.`;
   if(!confirm(msg))return;
-  withBusy(b,async()=>{await deleteDoc(doc(db,"farmers",f.id));showToast("ගොවියා මකා දමන ලදී.");await loadAll()});
+  withBusy(b,async()=>{qDelete(doc(db,"farmers",f.id));showToast("ගොවියා මකා දමන ලදී.");await loadAll({cacheOnly:true})});
 });
 
 // ---------- Calculator ----------
@@ -388,9 +453,9 @@ $("farmerForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.subm
   if(farmers.some(f=>f.id!==editId&&(f.code||"").toLowerCase()===code.toLowerCase()))throw Error("මෙම ගොවි අංකය දැනටමත් භාවිතා වේ.");
   const land=$("farmerLand").value.trim();
   const data={code,name,phone:$("farmerPhone").value.trim(),nic:$("farmerNic").value.trim(),address:$("farmerAddress").value.trim(),route:$("farmerRoute").value.trim(),landAcres:land===""?null:num(land),joinedDate:$("farmerJoined").value||"",bankName:$("farmerBank").value.trim(),bankAccount:$("farmerAccount").value.trim(),note:$("farmerNote").value.trim(),active:$("farmerActive").value!=="no"};
-  if(editId)await setDoc(doc(db,"farmers",editId),{...data,updatedBy:currentUser.uid,updatedAt:serverTimestamp()},{merge:true});
-  else await addDoc(collection(db,"farmers"),{...data,createdAt:serverTimestamp(),createdBy:currentUser.uid});
-  resetFarmerForm();showMessage("farmerMsg",editId?"ගොවි විස්තර යාවත්කාලීන විය.":"ගොවියා සාර්ථකව සුරැකුණි.");await loadAll();
+  if(editId)qSet(doc(db,"farmers",editId),{...data,updatedBy:currentUser.uid,updatedAt:serverTimestamp()},{merge:true});
+  else qAdd(collection(db,"farmers"),{...data,createdAt:serverTimestamp(),createdBy:currentUser.uid});
+  resetFarmerForm();showMessage("farmerMsg",editId?"ගොවි විස්තර යාවත්කාලීන විය.":"ගොවියා සාර්ථකව සුරැකුණි.");await loadAll({cacheOnly:true});
 })});
 function downloadCsv(name,data){
   const csv="\uFEFF"+data.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
@@ -586,7 +651,13 @@ $("reportTitle").addEventListener("input",()=>{});
 $("runReport").addEventListener("click",renderReport);$("exportCsv").addEventListener("click",exportReportCsv);$("printReport").addEventListener("click",printReportCustom);
 $("reportColsReset").addEventListener("click",()=>{repSel[repMode()]=[...REP_DEFAULT[repMode()]];renderReport()});
 
-if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
+if("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("./sw.js").then(()=>navigator.serviceWorker.ready).then(reg=>{
+    // Ask the service worker to keep every CDN library this page loaded, so the app can start offline.
+    const urls=performance.getEntriesByType("resource").map(r=>r.name).filter(u=>/^https:\/\/(www\.gstatic\.com\/firebasejs\/|cdnjs\.cloudflare\.com\/|unpkg\.com\/)/.test(u));
+    (reg.active||navigator.serviceWorker.controller)?.postMessage({type:"CACHE_URLS",urls});
+  }).catch(console.warn);
+}
 
 
 // =====================================================================
