@@ -123,3 +123,12 @@ body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;widt
   .receipt-card,.profile-card{max-height:96vh}
 }
 @media screen and (max-width:760px) and (min-width:0){ body:not(.role-owner) .tab.owner-only{display:none!important} }
+
+/* ===== Receipt window on phones: always above the bottom menu, buttons always visible ===== */
+.modal{z-index:40}
+.receipt-card{width:min(100%,460px);max-height:94vh;max-height:94dvh;display:flex;flex-direction:column;overflow:hidden;padding:22px 16px calc(14px + env(safe-area-inset-bottom,0px))}
+.receipt-card h2{flex:0 0 auto;margin:0 0 8px}
+.receipt-opts{flex:0 0 auto}
+.receipt-preview{flex:1 1 auto;min-height:0;overflow:auto;margin:10px 0}
+.receipt-actions{flex:0 0 auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.receipt-actions .btn{flex:none;min-height:50px;padding:8px 4px;font-size:.84rem;line-height:1.25;white-space:normal;display:flex;align-items:center;justify-content:center;text-align:center}
