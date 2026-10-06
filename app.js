@@ -757,3 +757,17 @@ function renderPriceNote(){
   const m=monthNow(),p=priceForMonth(m);
   el.textContent=p?`${m} මාසයේ කිලෝවක මිල: ${money(p)}.`:`${m} මාසයේ කිලෝවක මිල තවම නියම වී නැත (කලින් මාසයේ මිල මෙම මාසයට අදාළ නොවේ). දැන් සටහන් වන්නේ බර පමණි; මාසය අවසානයේ මිල ඇතුළත් කළ පසු වටිනාකම ගණනය වේ.`;
 }
+
+
+// ===== Install to Home Screen (PWA) =====
+let deferredInstall=null;
+const isStandalone=()=>window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+if(isStandalone())$("installBtn").classList.add("hidden");
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstall=e});
+window.addEventListener("appinstalled",()=>{deferredInstall=null;$("installBtn").classList.add("hidden");showToast("යෙදුම Home Screen එකට එකතු විය.")});
+$("installBtn").addEventListener("click",async()=>{
+  if(deferredInstall){deferredInstall.prompt();try{await deferredInstall.userChoice}catch{}deferredInstall=null;return}
+  $("installModal").classList.remove("hidden");
+});
+$("closeInstallModal").addEventListener("click",()=>$("installModal").classList.add("hidden"));
+$("installModal").addEventListener("click",e=>{if(e.target===$("installModal"))$("installModal").classList.add("hidden")});

@@ -132,3 +132,13 @@ body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;widt
 .receipt-preview{flex:1 1 auto;min-height:0;overflow:auto;margin:10px 0}
 .receipt-actions{flex:0 0 auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .receipt-actions .btn{flex:none;min-height:50px;padding:8px 4px;font-size:.84rem;line-height:1.25;white-space:normal;display:flex;align-items:center;justify-content:center;text-align:center}
+
+/* ===== Logo, header and install-to-home-screen ===== */
+.brandrow{display:flex;align-items:center;gap:10px;min-width:0}
+.brand-logo{width:46px;height:46px;border-radius:50%;background:#fff;padding:2px;flex:0 0 auto;object-fit:contain}
+.topactions{display:flex;align-items:center;gap:10px}
+.install-btn{padding:8px 12px;font-size:.85rem;white-space:nowrap}
+.login-logo{display:block;width:96px;height:96px;margin:0 auto 4px;object-fit:contain}
+.install-card{text-align:left}.install-card h3{font-size:.95rem;margin:14px 0 4px;color:#176b45}.install-card ol{margin:0;padding-left:20px;line-height:1.7;font-size:.92rem}
+@media screen and (max-width:760px){.brand-logo{width:40px;height:40px}.topactions{gap:6px}.install-btn{padding:8px 10px;font-size:.78rem;min-height:40px}.topbar .brand{font-size:1.02rem}}
+@media print{#installModal{display:none!important}}

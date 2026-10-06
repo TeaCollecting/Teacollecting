@@ -6,16 +6,26 @@
   <meta name="theme-color" content="#176b45">
   <title>තේ දළු කළමනාකරණ POS</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="තේ දළු POS">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="topbar">
-    <div><div class="brand">🍃 තේ දළු POS</div><div class="subbrand">තේ දළු එකතු කිරීමේ කළමනාකරණ පද්ධතිය</div></div>
-    <div id="userBox" class="userbox hidden"><span id="userLabel"></span><button id="logoutBtn" class="btn btn-light">ඉවත් වන්න</button></div>
+    <div class="brandrow"><img class="brand-logo" src="logo-header.png" alt="" width="46" height="46"><div><div class="brand">තේ දළු POS</div><div class="subbrand">තේ දළු එකතු කිරීමේ කළමනාකරණ පද්ධතිය</div></div></div>
+    <div class="topactions">
+      <button id="installBtn" class="btn btn-light install-btn" type="button">📲 ඉන්ස්ටෝල්</button>
+      <div id="userBox" class="userbox hidden"><span id="userLabel"></span><button id="logoutBtn" class="btn btn-light">ඉවත් වන්න</button></div>
+    </div>
   </header>
 
   <main>
     <section id="loginView" class="panel login-panel">
+      <img class="login-logo" src="logo-header.png" alt="" width="96" height="96">
       <h1>පද්ධතියට පිවිසෙන්න</h1>
       <p class="muted">හිමිකරු හෝ අනුමත දළු එකතු කරන සේවක ගිණුම භාවිත කරන්න.</p>
       <form id="loginForm">
@@ -230,6 +240,17 @@
       <button id="closeFarmerModal" class="btn btn-light modal-close" type="button" aria-label="වසන්න">✕</button>
       <div id="farmerProfile"></div>
       <button id="printFarmerProfile" class="btn btn-primary" type="button">විස්තර පත්‍රය මුද්‍රණය</button>
+    </div>
+  </div>
+  <div id="installModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Home Screen එකට එකතු කරන්න">
+    <div class="modal-card install-card">
+      <button id="closeInstallModal" class="modal-close btn btn-light" type="button" aria-label="වසන්න">✕</button>
+      <h2>📲 Home Screen එකට එකතු කරන්න</h2>
+      <h3>Android (Chrome)</h3>
+      <ol><li>Chrome හි ⋮ මෙනුව ඔබන්න.</li><li><b>Install app</b> හෝ <b>Add to Home screen</b> තෝරන්න.</li><li><b>Install</b> ඔබන්න.</li></ol>
+      <h3>iPhone (Safari)</h3>
+      <ol><li>පහළ ඇති <b>Share</b> බොත්තම (⬆️) ඔබන්න.</li><li><b>Add to Home Screen</b> තෝරන්න.</li><li><b>Add</b> ඔබන්න.</li></ol>
+      <p class="muted">iPhone හි Chrome වලින් නොව, Safari වලින් විවෘත කළ යුතුය. Install කළ පසු Home Screen එකේ ලාංඡනය තට්ටු කර යෙදුම විවෘත කරන්න.</p>
     </div>
   </div>
   <div id="receiptModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="දළු ලදුපත">
