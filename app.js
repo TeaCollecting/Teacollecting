@@ -644,18 +644,16 @@ async function buildReceiptCanvas(d,paper,withPhone){
   if(withPhone&&f.phone)row("දුරකථන",safeText(f.phone));
   dash();
   const ded=num(d.deduct);
-  if(ded>0){
-    row("මුළු බර",num(d.gross).toFixed(2)+" kg");
-    row("මල්ලේ බර අඩු කිරීම","- "+ded.toFixed(2)+" kg");
-    y+=2;
-  }
+  row("මුළු බර",num(d.gross??d.kg).toFixed(2)+" kg");
+  row("මල්ලේ බර",(ded>0?"- ":"")+ded.toFixed(2)+" kg");
+  y+=2;
   center("ශුද්ධ දළු බර",20,400,0);
   center(num(d.kg).toFixed(2)+" kg",54,700,2);
   if(d.month){
     dash();
     center(d.month.month+" මාසය",20,700,2);
     row("වාර ගණන",String(d.month.visits));
-    if(num(d.month.deduct)>0)row("මල්ලේ අඩු කිරීම් එකතුව",num(d.month.deduct).toFixed(2)+" kg");
+    if(num(d.month.deduct)>0)row("මල්ලේ බර එකතුව",num(d.month.deduct).toFixed(2)+" kg");
     row("මාසික දළු එකතුව",num(d.month.kg).toFixed(2)+" kg",22,700);
   }
   dash();
@@ -729,3 +727,21 @@ function monthSummary(farmerId,date){
   const rows=collectionsData.filter(c=>c.farmerId===farmerId&&(c.date||"").startsWith(m));
   return{month:m,kg:rows.reduce((s,c)=>s+num(c.kg),0),deduct:rows.reduce((s,c)=>s+num(c.deductKg),0),visits:rows.length};
 }
+
+
+// =====================================================================
+// Phone card layout: copy each column heading onto its cell (data-label)
+// so the CSS can show every table row as a card on small screens.
+// =====================================================================
+function cardifyTable(t){
+  const heads=[...t.querySelectorAll("thead th")].map(h=>h.textContent.trim());
+  t.querySelectorAll("tbody tr, tfoot tr").forEach(tr=>[...tr.children].forEach((c,i)=>{
+    const label=c.hasAttribute("colspan")?"":(heads[i]||"");
+    if(c.getAttribute("data-label")!==label)c.setAttribute("data-label",label);
+  }));
+}
+document.querySelectorAll("table").forEach(t=>{
+  cardifyTable(t);
+  let queued=false;
+  new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;cardifyTable(t)})}).observe(t,{childList:true,subtree:true});
+});

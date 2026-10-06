@@ -76,3 +76,50 @@ body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;widt
 .receipt-preview img{display:block;background:#fff;box-shadow:0 2px 10px #0003;max-width:100%;height:auto}
 .receipt-actions{display:flex;flex-wrap:wrap;gap:8px}.receipt-actions .btn{flex:1 1 130px}
 @media print{#receiptModal{display:none!important}}
+
+/* ===== Phone-first: card layout, bottom navigation, big touch targets ===== */
+.tab .ti{margin-right:6px}
+@media screen and (max-width:760px){
+  body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));background:#eef4f0}
+  .topbar{padding:10px 14px;flex-direction:row;align-items:center}
+  .brand{font-size:1.1rem}.subbrand{display:none}
+  .userbox{width:auto;gap:8px;font-size:.72rem}.userbox #userLabel{display:none}
+  .userbox .btn{padding:8px 12px;font-size:.85rem}
+  main{margin:10px auto;padding:0 12px}
+  .page h1{font-size:1.2rem;margin:10px 2px}
+  /* bottom navigation bar */
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:25;margin:0;gap:0;flex-wrap:nowrap;overflow-x:auto;background:#fff;border-top:1px solid #dbe7df;box-shadow:0 -4px 16px #12351a14;padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px));scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab,body.role-owner button.tab.owner-only{display:flex;flex:1 0 74px;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;border-radius:12px;background:transparent;padding:7px 4px;min-height:58px}
+  .tab:not(.owner-only){display:flex}
+  .tab.owner-only{display:none}
+  .tab .ti{margin:0;font-size:1.35rem;line-height:1}.tab .tl{font-size:.66rem;line-height:1.2;text-align:center;font-weight:600}
+  .tab.active,.tab.active:hover{background:#e0f2e7;color:#176b45;border:0}
+  /* floating calculator sits above the bottom bar */
+  .calc-fab{bottom:calc(86px + env(safe-area-inset-bottom,0px));height:52px;padding:0 18px}
+  .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+  /* cards */
+  .panel{border-radius:18px;padding:16px}
+  .stat{border-radius:16px}
+  input,select{font-size:16px;min-height:48px;border-radius:12px}
+  .btn{min-height:48px;font-size:1rem;border-radius:12px}
+  .form-grid .btn.full,.panel>.btn{width:100%}
+  #collectionForm .btn-primary{min-height:56px;font-size:1.1rem}
+  .calc-box{border-radius:14px}
+  /* tables become cards */
+  .table-wrap{overflow:visible}
+  table,thead,tbody,tfoot,tr,th,td{display:block;white-space:normal}
+  thead{display:none}
+  tr{background:#fff;border:1px solid #dfe9e2;border-radius:16px;padding:8px 14px;margin:10px 0;box-shadow:0 2px 8px #12351a0d}
+  tfoot tr{background:#e7f2ea;border-color:#cfe3d6}
+  td,th{display:flex;justify-content:space-between;align-items:center;gap:14px;border:0;padding:7px 0;max-width:none;text-align:right;background:transparent;word-break:break-word}
+  td+td,th+th{border-top:1px dashed #e4ece6}
+  td::before,th::before{content:attr(data-label);flex:0 0 38%;text-align:left;color:#6d7e74;font-size:.8rem;font-weight:500}
+  td[data-label=""],th[data-label=""]{justify-content:flex-start;flex-wrap:wrap}
+  td[data-label=""]::before,th[data-label=""]::before{display:none}
+  td[colspan]{justify-content:center;text-align:center;color:#6d7e74}
+  td .btn{min-height:44px;padding:8px 14px}
+  .toolbar input{flex:1 1 100%}
+  .receipt-card,.profile-card{max-height:96vh}
+}
+@media screen and (max-width:760px) and (min-width:0){ body:not(.role-owner) .tab.owner-only{display:none!important} }
