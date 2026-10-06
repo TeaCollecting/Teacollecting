@@ -652,13 +652,6 @@ async function buildReceiptCanvas(d,paper,withPhone){
   y+=2;
   center("ශුද්ධ දළු බර",20,400,0);
   center(num(d.kg).toFixed(2)+" kg",54,700,2);
-  if(d.month){
-    dash();
-    center(d.month.month+" මාසය",20,700,2);
-    row("වාර ගණන",String(d.month.visits));
-    if(num(d.month.deduct)>0)row("මල්ලේ බර එකතුව",num(d.month.deduct).toFixed(2)+" kg");
-    row("මාසික දළු එකතුව",num(d.month.kg).toFixed(2)+" kg",22,700);
-  }
   dash();
   center("ස්තූතියි!",22,600,2);
   center(RECEIPT_CREDIT,15,400,0);
