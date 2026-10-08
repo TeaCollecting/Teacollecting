@@ -29,6 +29,11 @@ let currentUser=null, role=null, farmers=[], collectionsData=[], paymentsData=[]
 let settlementCalc=null, monthlyPrices={};
 const priceForMonth=m=>num(monthlyPrices[m]);
 const PRICE_PENDING="මිල තවම නියම වී නැත";
+// Dashboard "this month's value" is shown only at the end of the month.
+// MONTH_END_DAYS = how many days (counting the last day) the value stays visible; 1 = last day only.
+const MONTH_END_DAYS=1;
+const MONTH_VALUE_HIDDEN="මාසය අවසානයේ පෙන්වයි";
+const isMonthEnd=()=>{const d=new Date(),last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();return d.getDate()>last-MONTH_END_DAYS};
 const priceForDate=d=>priceForMonth((d||"").slice(0,7));
 const valueOf=c=>Math.round(num(c.kg)*priceForDate(c.date)*100)/100;
 
@@ -118,14 +123,14 @@ function renderPrices(){
   if(!$("priceMonth")||!$("monthPrice")||!$("priceRows"))return;
   if(!$("priceMonth").value)$("priceMonth").value=pendingPriceMonths()[0]||monthNow();renderPendingPrices();
   if(document.activeElement!==$("monthPrice"))$("monthPrice").value=priceForMonth($("priceMonth").value)||"";
-  $("priceRows").innerHTML=Object.keys(monthlyPrices).sort().reverse().map(m=>`<tr><td>${escapeHtml(m)}</td><td>${money(monthlyPrices[m])}</td></tr>`).join("")||'<tr><td colspan="2">මිල ඇතුළත් කර නැත.</td></tr>';
+  $("priceRows").innerHTML=Object.keys(monthlyPrices).sort().reverse().map(m=>`<tr><td>${escapeHtml(m)}</td><td>${money(monthlyPrices[m])}</td><td><button class="btn btn-light del-price-btn" type="button" data-month="${escapeHtml(m)}">මකන්න</button></td></tr>`).join("")||'<tr><td colspan="3">මිල ඇතුළත් කර නැත.</td></tr>';
 }
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
 function renderDashboard(){
   const t=today(),m=monthNow(),todayRows=collectionsData.filter(c=>c.date===t),monthRows=collectionsData.filter(c=>(c.date||"").startsWith(m));
   $("todayKg").textContent=todayRows.reduce((s,c)=>s+num(c.kg),0).toLocaleString()+" kg";
   $("monthKg").textContent=monthRows.reduce((s,c)=>s+num(c.kg),0).toLocaleString()+" kg";
-  const mPrice=priceForMonth(m);$("monthValue").textContent=mPrice?money(monthRows.reduce((s,c)=>s+num(c.kg),0)*mPrice):PRICE_PENDING;
+  const mPrice=priceForMonth(m);$("monthValue").textContent=!isMonthEnd()?MONTH_VALUE_HIDDEN:(mPrice?money(monthRows.reduce((s,c)=>s+num(c.kg),0)*mPrice):PRICE_PENDING);
   $("farmerCount").textContent=farmers.length;
   $("todayRows").innerHTML=todayRows.map(c=>`<tr><td>${escapeHtml(c.createdAtText||c.date)}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${num(c.kg).toFixed(2)}</td></tr>`).join("")||'<tr><td colspan="3">අද දළු එකතු කිරීම් නැත.</td></tr>';
   renderTodayCollect();renderPriceNote();
@@ -293,6 +298,16 @@ $("priceForm")?.addEventListener("submit",e=>{e.preventDefault();if(!requireOwne
   qSet(doc(db,"monthlyPrices",month),{month,pricePerKg:price,updatedBy:currentUser.uid,updatedAt:serverTimestamp()});
   showMessage("priceMsg",month+" මාසයේ මිල සුරැකුණි.");await loadAll({cacheOnly:true});
 })});
+
+// Owner-only: delete a monthly price (Firestore rules also enforce this)
+$("priceRows")?.addEventListener("click",e=>{
+  const b=e.target.closest(".del-price-btn");if(!b)return;
+  if(!requireOwner())return;
+  const month=b.dataset.month;if(!month||!(month in monthlyPrices))return;
+  if(paymentsData.some(p=>p.month===month)){showToast(month+" මාසයට ගෙවීම් දැනටමත් සුරැකී ඇති නිසා මිල මකා දැමිය නොහැක.");return}
+  if(!confirm(month+" මාසයේ මිල ("+money(monthlyPrices[month])+") මකා දමන්නද?\n\nමකා දැමූ පසු එම මාසයේ වටිනාකම් ගණනය නොවන අතර, නැවත මිලක් ඇතුළත් කරන තෙක් \"මිල තවම නියම වී නැත\" ලෙස පෙනේ."))return;
+  withBusy(b,async()=>{qDelete(doc(db,"monthlyPrices",month));delete monthlyPrices[month];showToast(month+" මාසයේ මිල මකා දමන ලදී.");await loadAll({cacheOnly:true})});
+});
 
 function showPage(name){
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.page===name));

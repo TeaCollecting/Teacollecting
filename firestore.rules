@@ -38,7 +38,7 @@ service cloud.firestore {
       allow create, update: if isOwner()
         && request.resource.data.pricePerKg is number
         && request.resource.data.pricePerKg > 0;
-      allow delete: if false;
+      allow delete: if isOwner();
     }
     match /collections/{collectionId} {
       allow read: if staff();
