@@ -171,7 +171,7 @@ function calculateSettlement(){
 }
 function printable(title,body,extraCss=""){
   const w=window.open("","_blank");if(!w){showToast("මුද්‍රණ කවුළුව අවහිර වී ඇත. Browser pop-ups සක්‍රීය කරන්න.");return}
-  w.document.write(`<!doctype html><html lang="si"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet"><style>body{font-family:Arial,sans-serif;padding:25px;color:#18352a}h1{font-size:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:8px;text-align:left}.total{font-size:18px;font-weight:bold;margin-top:18px}@media print{button{display:none}}${extraCss}</style></head><body>${body}<button onclick="window.print()">මුද්‍රණය / PDF</button></body></html>`);w.document.close();
+  w.document.write(`<!doctype html><html lang="si"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet"><style>body{font-family:Arial,sans-serif;padding:25px;color:#18352a}h1{font-size:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:8px;text-align:left}.total{font-size:18px;font-weight:bold;margin-top:18px}.contact-foot{margin-top:26px;padding-top:10px;border-top:2px solid #176b45;text-align:center;font-size:15px;font-weight:bold}.contact-foot a{color:#176b45;text-decoration:none}.idcard-page .contact-foot{display:none}@media print{button{display:none}}${extraCss}</style></head><body>${body}<div class="contact-foot">දුරකථන: ${contactHtml()}</div><button onclick="window.print()">මුද්‍රණය / PDF</button></body></html>`);w.document.close();
 }
 function settlementPrint(){
   if(!settlementCalc)return;
@@ -181,27 +181,150 @@ function settlementPrint(){
 async function withBusy(button,fn){button.disabled=true;try{await fn()}catch(e){console.error(e);showToast("දෝෂයක්: "+(e.message||"කරුණාකර සැකසුම් පරීක්ෂා කරන්න."))}finally{button.disabled=false}}
 
 let activeQrFarmer=null;
+let activeCardCanvas=null;
 let qrScanner=null;
-function showFarmerQr(farmerId){
+
+/* ---------- ගොවි QR හැඳුනුම්පත (ක්‍රෙඩිට් කාඩ් ප්‍රමාණය 85.6mm × 54mm) ---------- */
+const CARD_W=1012,CARD_H=638; // ≈300 dpi
+const SI_FONT='"Noto Sans Sinhala","Nirmala UI","Iskoola Pota","Sinhala MN",sans-serif';
+const CARD_TITLE="අමු තේ දළු එකතු කරන්නෝ";
+// ව්‍යාපාරයේ සම්බන්ධතා අංක (කාඩ්පත්, බිල්පත්, මුද්‍රණ සඳහා)
+const CONTACT_PHONES=["0772274505","0716679238"];
+const contactText=()=>CONTACT_PHONES.join(" / ");
+const intlPhone=n=>"+94"+String(n).replace(/\D/g,"").replace(/^0/,"");
+const contactHtml=()=>CONTACT_PHONES.map(n=>`<a href="tel:${intlPhone(n)}">${n}</a>`).join(" / ")+` &nbsp;|&nbsp; WhatsApp: `+CONTACT_PHONES.map(n=>`<a href="https://wa.me/${intlPhone(n).slice(1)}">${n}</a>`).join(" / ");
+
+function makeQrCanvas(text,size,margin){
+  const box=document.createElement("div");
+  new QRCode(box,{text,width:size,height:size,colorDark:"#102a1d",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
+  const src=box.querySelector("canvas");
+  if(!src)return null;
+  const out=document.createElement("canvas");out.width=out.height=size+margin*2;
+  const c=out.getContext("2d");c.fillStyle="#fff";c.fillRect(0,0,out.width,out.height);c.drawImage(src,margin,margin,size,size);
+  return out;
+}
+function loadImg(src){return new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=src})}
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function fitFont(c,text,weight,start,min,maxW){let s=start;do{c.font=`${weight} ${s}px ${SI_FONT}`;if(c.measureText(text).width<=maxW)break;s-=2}while(s>min);return s}
+function wrapLines(c,text,maxW,maxLines){
+  const words=String(text||"").trim().split(/\s+/).filter(Boolean),lines=[];let cur="";
+  for(const w of words){const t=cur?cur+" "+w:w;if(c.measureText(t).width<=maxW||!cur)cur=t;else{lines.push(cur);cur=w}}
+  if(cur)lines.push(cur);
+  if(lines.length>maxLines){const keep=lines.slice(0,maxLines-1);keep.push(lines.slice(maxLines-1).join(" "));return keep}
+  return lines;
+}
+function wave(c,W,H,y,amp,col,phase){c.beginPath();c.moveTo(0,H);c.lineTo(0,y);for(let x=0;x<=W;x+=16)c.lineTo(x,y+Math.sin(x/110+phase)*amp);c.lineTo(W,H);c.closePath();c.fillStyle=col;c.fill()}
+
+async function buildFarmerCard(f){
+  const W=CARD_W,H=CARD_H,cv=document.createElement("canvas");cv.width=W;cv.height=H;
+  const c=cv.getContext("2d");
+  try{await Promise.all([document.fonts.load(`700 40px ${SI_FONT}`,CARD_TITLE),document.fonts.load(`400 30px ${SI_FONT}`,"ශ්‍රී")])}catch(e){}
+  c.save();rr(c,0,0,W,H,38);c.clip();
+  // පසුබිම — වර්ණවත් කොළ gradient
+  let g=c.createLinearGradient(0,0,W,H);g.addColorStop(0,"#0a5a38");g.addColorStop(.5,"#1f9a50");g.addColorStop(1,"#a3d13f");
+  c.fillStyle=g;c.fillRect(0,0,W,H);
+  // හිරු එළිය
+  g=c.createRadialGradient(W-150,170,10,W-150,170,330);g.addColorStop(0,"rgba(255,236,150,.55)");g.addColorStop(1,"rgba(255,236,150,0)");
+  c.fillStyle=g;c.fillRect(0,0,W,H);
+  // තේ වතු පේළි
+  wave(c,W,H,400,20,"rgba(255,255,255,.09)",0.3);
+  wave(c,W,H,455,18,"rgba(0,70,35,.16)",1.7);
+  wave(c,W,H,515,16,"rgba(0,60,30,.26)",3.1);
+  c.fillStyle="rgba(255,255,255,.10)";
+  [[70,300,10],[110,360,6],[560,150,8],[600,330,5],[470,280,7]].forEach(([x,y,r])=>{c.beginPath();c.arc(x,y,r,0,7);c.fill()});
+  // ඉහළ තීරුව
+  c.fillStyle="rgba(5,58,36,.94)";c.fillRect(0,0,W,122);
+  g=c.createLinearGradient(0,0,W,0);g.addColorStop(0,"#f2b705");g.addColorStop(.5,"#ffe27a");g.addColorStop(1,"#f2b705");
+  c.fillStyle=g;c.fillRect(0,122,W,8);
+  // ලාංඡනය
+  const logo=await loadImg("logo-header.png");
+  if(logo){c.save();c.beginPath();c.arc(78,63,50,0,7);c.closePath();c.fillStyle="#fff";c.fill();c.clip();c.drawImage(logo,28,13,100,100);c.restore()}
+  // මාතෘකාව
+  const tx=(logo?150:30),tw=W-tx-30;
+  fitFont(c,CARD_TITLE,"800",58,30,tw);
+  c.textAlign="center";c.textBaseline="middle";c.fillStyle="#fff";c.shadowColor="rgba(0,0,0,.35)";c.shadowBlur=8;c.shadowOffsetY=3;
+  c.fillText(CARD_TITLE,tx+tw/2,64);
+  c.shadowColor="transparent";c.shadowBlur=0;c.shadowOffsetY=0;
+  // වම් පස — විස්තර
+  const L=44,maxW=560;c.textAlign="left";c.textBaseline="alphabetic";c.fillStyle="#fff";
+  const nfs=fitFont(c,String(f.name||"").slice(0,24),"700",56,34,maxW);
+  c.font=`700 ${nfs}px ${SI_FONT}`;
+  const lines=wrapLines(c,f.name,maxW,2),lh=Math.round(nfs*1.28);
+  c.shadowColor="rgba(0,0,0,.35)";c.shadowBlur=6;c.shadowOffsetY=2;
+  lines.forEach((t,i)=>c.fillText(t,L,215+i*lh));
+  c.shadowColor="transparent";c.shadowBlur=0;c.shadowOffsetY=0;
+  let y=215+(Math.max(lines.length,1)-1)*lh+34;
+  const codeTxt="ගොවි අංකය: "+(f.code||"");
+  const cfs=fitFont(c,codeTxt,"700",38,24,maxW-56);c.font=`700 ${cfs}px ${SI_FONT}`;
+  const pw=Math.min(maxW,c.measureText(codeTxt).width+56);
+  g=c.createLinearGradient(L,y,L+pw,y);g.addColorStop(0,"#ffd54a");g.addColorStop(1,"#f4a300");
+  rr(c,L,y,pw,66,33);c.fillStyle=g;c.fill();
+  c.fillStyle="#0b3d26";c.fillText(codeTxt,L+28,y+45);
+  y+=66+54;
+  if(f.phone){const pt="දුරකථන: "+f.phone;c.font=`600 ${fitFont(c,pt,"600",34,22,maxW)}px ${SI_FONT}`;c.fillStyle="#fff";c.fillText(pt,L,y)}
+  // QR කොටුව
+  const qp=340,qx=W-40-qp,qy=142;
+  c.shadowColor="rgba(0,0,0,.35)";c.shadowBlur=18;c.shadowOffsetY=6;
+  rr(c,qx,qy,qp,qp,26);c.fillStyle="#fff";c.fill();
+  c.shadowColor="transparent";c.shadowBlur=0;c.shadowOffsetY=0;
+  rr(c,qx+3,qy+3,qp-6,qp-6,24);c.lineWidth=6;c.strokeStyle="#f2b705";c.stroke();
+  // Only a non-secret database document ID is encoded; personal details are not stored in the QR.
+  const qr=makeQrCanvas("TEA-FARMER:"+f.id,600,0);
+  if(qr){c.imageSmoothingQuality="high";c.drawImage(qr,qx+24,qy+24,qp-48,qp-48)}
+  c.textAlign="center";c.font=`700 28px ${SI_FONT}`;c.fillStyle="#fff";c.fillText("QR ස්කෑන් කරන්න",qx+qp/2,qy+qp+36);
+  // පහළ තීරුව (විශාල කළ)
+  const FH=104;
+  c.fillStyle="rgba(5,58,36,.96)";c.fillRect(0,H-FH,W,FH);
+  g=c.createLinearGradient(0,0,W,0);g.addColorStop(0,"#f2b705");g.addColorStop(.5,"#ffe27a");g.addColorStop(1,"#f2b705");
+  c.fillStyle=g;c.fillRect(0,H-FH-5,W,5);
+  c.textBaseline="middle";c.textAlign="left";c.fillStyle="#fff";
+  const bn=settings.businessName||"";c.font=`700 ${fitFont(c,bn,"700",36,20,560)}px ${SI_FONT}`;c.fillText(bn,40,H-FH+30);
+  c.textAlign="right";c.fillStyle="#ffd54a";c.font=`700 34px ${SI_FONT}`;c.fillText("ගොවි හැඳුනුම්පත",W-40,H-FH+30);
+  const ct="දුරකථන / WhatsApp:  "+contactText();
+  c.textAlign="center";c.fillStyle="#fff";c.font=`700 ${fitFont(c,ct,"700",34,20,W-60)}px ${SI_FONT}`;c.fillText(ct,W/2,H-30);
+  c.restore();
+  rr(c,3,3,W-6,H-6,36);c.lineWidth=6;c.strokeStyle="rgba(255,255,255,.75)";c.stroke();
+  return cv;
+}
+function downloadCanvas(cv,name){
+  cv.toBlob(b=>{if(!b){showToast("PNG සෑදීමට නොහැකි විය.");return}
+    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),5000)},"image/png");
+}
+const fileKey=f=>String(f.code||f.id).replace(/[^\w-]+/g,"_");
+
+async function showFarmerQr(farmerId){
   const f=farmers.find(x=>x.id===farmerId);
   if(!f){showToast("ගොවියා සොයාගත නොහැක.");return}
-  activeQrFarmer=f;
-  $("qrFarmerDetails").innerHTML=`<strong>${escapeHtml(f.name)}</strong><span>ගොවි අංකය: ${escapeHtml(f.code)}</span><span>${escapeHtml(f.phone||"")}</span>`;
-  $("farmerQrCode").innerHTML="";
   if(typeof QRCode==="undefined"){showToast("QR Code library එක load වී නැත. අන්තර්ජාල සම්බන්ධතාව පරීක්ෂා කරන්න.");return}
-  // Only a non-secret database document ID is encoded; personal details are not stored in the QR.
-  new QRCode($("farmerQrCode"),{text:"TEA-FARMER:"+f.id,width:220,height:220,colorDark:"#102a1d",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
+  activeQrFarmer=f;activeCardCanvas=null;
+  $("qrFarmerDetails").innerHTML=`<strong>${escapeHtml(f.name)}</strong><span>ගොවි අංකය: ${escapeHtml(f.code)}</span><span>${escapeHtml(f.phone||"")}</span>`;
+  $("farmerCardPreview").removeAttribute("src");
   $("qrModal").classList.remove("hidden");
+  const cv=await buildFarmerCard(f);
+  if(activeQrFarmer!==f)return; // modal වසා හෝ වෙනත් ගොවියෙකු තෝරා ඇත්නම්
+  activeCardCanvas=cv;$("farmerCardPreview").src=cv.toDataURL("image/png");
 }
-function closeFarmerQr(){$("qrModal").classList.add("hidden");activeQrFarmer=null}
+function closeFarmerQr(){$("qrModal").classList.add("hidden");activeQrFarmer=null;activeCardCanvas=null}
 $("closeQrModal").addEventListener("click",closeFarmerQr);
 $("qrModal").addEventListener("click",e=>{if(e.target===$("qrModal"))closeFarmerQr()});
-$("printFarmerQr").addEventListener("click",()=>{
+$("downloadFarmerCard").addEventListener("click",async()=>{
   if(!activeQrFarmer)return;
-  const f=activeQrFarmer,qr=$("farmerQrCode").querySelector("canvas")?.toDataURL("image/png")||$("farmerQrCode").querySelector("img")?.src;
-  if(!qr){showToast("QR Code එක තවම සූදානම් නැත.");return}
-  const css=`@page{size:85.6mm 54mm;margin:0}body.idcard-page{padding:0;margin:0;background:#fff}.idcard{width:85.6mm;height:54mm;box-sizing:border-box;border:.3mm solid #176b45;border-radius:3mm;overflow:hidden;display:flex;flex-direction:column;font-family:"Noto Sans Sinhala",Arial,sans-serif;color:#18352a;page-break-inside:avoid}.idcard .hd{background:#176b45;color:#fff;padding:1.6mm 3mm;font-size:9pt;font-weight:700;line-height:1.2}.idcard .bd{flex:1;display:flex;align-items:center;gap:2.5mm;padding:2mm 3mm}.idcard .info{flex:1;min-width:0}.idcard .nm{font-size:10.5pt;font-weight:700;line-height:1.25;word-break:break-word}.idcard .cd{font-size:9pt;margin-top:1mm}.idcard .ph{font-size:8pt;margin-top:.8mm;color:#4a6355}.idcard img{width:31mm;height:31mm;object-fit:contain}.idcard .ft{font-size:6.5pt;text-align:center;color:#6d7e74;padding-bottom:1.2mm}@media screen{body.idcard-page{padding:20px}.idcard{box-shadow:0 2px 10px #0003}}`;
-  printable("ගොවි QR හැඳුනුම්පත",`<script>document.body.className="idcard-page"<\/script><div class="idcard"><div class="hd">${escapeHtml(settings.businessName)}</div><div class="bd"><div class="info"><div class="nm">${escapeHtml(f.name)}</div><div class="cd">ගොවි අංකය: ${escapeHtml(f.code)}</div><div class="ph">${escapeHtml(f.phone||"")}</div></div><img src="${qr}" alt="QR"></div><div class="ft">තේ දළු ගොවි හැඳුනුම්පත</div></div>`,css);
+  const cv=activeCardCanvas||await buildFarmerCard(activeQrFarmer);
+  downloadCanvas(cv,`farmer-card-${fileKey(activeQrFarmer)}.png`);
+});
+$("downloadFarmerQr").addEventListener("click",()=>{
+  if(!activeQrFarmer)return;
+  const cv=makeQrCanvas("TEA-FARMER:"+activeQrFarmer.id,800,48); // සුදු මායිම සහිත, ස්කෑන් කිරීමට පහසු
+  if(!cv){showToast("QR Code එක තවම සූදානම් නැත.");return}
+  downloadCanvas(cv,`farmer-qr-${fileKey(activeQrFarmer)}.png`);
+});
+$("printFarmerQr").addEventListener("click",async()=>{
+  if(!activeQrFarmer)return;
+  const cv=activeCardCanvas||await buildFarmerCard(activeQrFarmer);
+  const url=cv.toDataURL("image/png");
+  const css=`@page{size:85.6mm 54mm;margin:0}body.idcard-page{padding:0;margin:0;background:#fff}.idcard-img{display:block;width:85.6mm;height:54mm}@media screen{body.idcard-page{padding:20px;background:#eee}.idcard-img{box-shadow:0 2px 10px #0003}}`;
+  printable("ගොවි QR හැඳුනුම්පත",`<script>document.body.className="idcard-page"<\/script><img class="idcard-img" src="${url}" alt="ගොවි හැඳුනුම්පත">`,css);
 });
 $("startScanner").addEventListener("click",async()=>{
   if(typeof Html5Qrcode==="undefined"){showMessage("scanMsg","QR Scanner library එක load වී නැත. අන්තර්ජාලය සම්බන්ධ කර නැවත උත්සාහ කරන්න.",true);return}
@@ -722,7 +845,8 @@ async function buildReceiptCanvas(d,paper,withPhone){
   const f=d.farmer||{};
   center(settings.businessName,28,700,2);
   center(settings.businessAddress,18,400,0);
-  center(settings.businessPhone,18,400,0);
+  if(settings.businessPhone&&!CONTACT_PHONES.includes(String(settings.businessPhone).trim()))center(settings.businessPhone,18,400,0);
+  center("දුරකථන: "+contactText(),19,600,0);
   y+=4;dash();
   center("තේ දළු ලදුපත",25,700,2);
   dash();
@@ -740,6 +864,7 @@ async function buildReceiptCanvas(d,paper,withPhone){
   center(num(d.kg).toFixed(2)+" kg",54,700,2);
   dash();
   center("ස්තූතියි!",22,600,2);
+  center("WhatsApp / ඇමතුම්: "+contactText(),16,400,0);
   center(RECEIPT_CREDIT,15,400,0);
   y+=22;
   const out=document.createElement("canvas");out.width=W;out.height=Math.ceil(y);

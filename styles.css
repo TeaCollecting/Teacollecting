@@ -52,20 +52,26 @@ tfoot th{background:#e7f2ea;color:#176b45}
 .calc-actions{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;margin-top:12px}.calc-actions .btn{padding:14px;font-weight:600;border-radius:12px;font-size:1rem}
 @media print{.calc-fab,.calc-overlay{display:none!important}}
 
-/* ===== Site footer: slim one-line strip ===== */
+/* ===== Site footer: larger, with tap-friendly contact buttons ===== */
 body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;width:100%}
-.site-footer{flex-shrink:0;margin-top:10px;background:#fff;border-top:1px solid #e0e9e3;color:#6d7e74;font-size:.68rem;line-height:1.4;
-  padding:5px max(14px,calc((100% - 1200px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px}
+.site-footer{flex-shrink:0;margin-top:14px;background:#fff;border-top:3px solid #176b45;color:#4a6355;font-size:1.1rem;line-height:1.5;
+  padding:28px max(16px,calc((100% - 1200px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .foot-logo{display:block;flex:0 0 auto}
-.foot-logo img{display:block;width:64px;height:auto}
-.foot-contact{text-align:right}
-.foot-contact a{color:#176b45;text-decoration:none;white-space:nowrap}.foot-contact a:hover{text-decoration:underline}
+.foot-logo img{display:block;width:160px;height:auto}
+.foot-contact{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.foot-btn{display:inline-flex;align-items:center;gap:8px;min-height:56px;padding:0 26px;border-radius:30px;color:#fff!important;font-size:1.25rem;font-weight:700;text-decoration:none;white-space:nowrap;box-shadow:0 2px 8px #0002}
+.foot-btn:hover,.foot-btn:active{filter:brightness(1.08);transform:translateY(-1px)}
+.foot-wa{background:#1fa855}
+.foot-call{background:#176b45}
+.foot-mail{color:#176b45;font-size:1.05rem;font-weight:600;text-decoration:none;white-space:nowrap}
+.foot-mail:hover{text-decoration:underline}
 @media(max-width:640px){
-  /* right padding keeps the 🧮 button from covering the text, so no tall empty space is needed */
-  .site-footer{padding:5px 112px 5px 10px;font-size:.6rem;gap:8px}
-  .foot-logo img{width:52px}
+  /* right padding keeps the 🧮 button from covering the text */
+  .site-footer{padding:22px 112px 22px 12px;font-size:1rem;gap:12px}
+  .foot-logo img{width:120px}
+  .foot-contact{flex-direction:column;align-items:stretch;gap:8px;width:100%}
+  .foot-btn{justify-content:center;font-size:1.1rem;min-height:54px;padding:0 14px}
   .foot-mail{display:none}
-  .foot-contact{text-align:left}
 }
 @media print{.site-footer{display:none!important}}
 
@@ -142,3 +148,4 @@ body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;widt
 .install-card{text-align:left}.install-card h3{font-size:.95rem;margin:14px 0 4px;color:#176b45}.install-card ol{margin:0;padding-left:20px;line-height:1.7;font-size:.92rem}
 @media screen and (max-width:760px){.brand-logo{width:40px;height:40px}.topactions{gap:6px}.install-btn{padding:8px 10px;font-size:.78rem;min-height:40px}.topbar .brand{font-size:1.02rem}}
 @media print{#installModal{display:none!important}}
+.qr-modal-card{width:min(100%,520px);max-height:94vh;overflow:auto}.card-preview{display:block;width:100%;max-width:440px;aspect-ratio:1012/638;margin:6px auto 14px;border-radius:14px;box-shadow:0 6px 18px #0003;background:#e6efe9}.qr-actions{display:grid;gap:8px;margin-bottom:6px}
