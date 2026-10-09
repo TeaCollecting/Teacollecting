@@ -1,4 +1,4 @@
-const CACHE = "tea-leaf-pos-v10";
+const CACHE = "tea-leaf-pos-v12";
 const ASSETS = ["./", "./index.html", "./styles.css", "./manifest.json", "./app.js", "./nexora-logo.png", "./logo-header.png", "./favicon.png", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 // Third-party libraries (pinned versions) kept locally so the app can start with no signal.
 const CDN_ASSETS = [
