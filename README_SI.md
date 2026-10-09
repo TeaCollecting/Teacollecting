@@ -52,6 +52,7 @@
 - `farmers`: `code`, `name`, `phone`, `address`, `active`, `createdBy`
 - `collections`: `date`, `farmerId`, `kg`, `note`, `createdBy` (මිල නැත; මාසය අවසානයේ ගණනය කෙරේ)
 - `monthlyPrices/{YYYY-MM}`: `pricePerKg`
+- `farmerCharges`: `date`, `farmerId`, `type` (`advance` / `fertilizer` / `tea`), `amount`, `note`, `collectionId` (දළු සමඟ සටහන් කළ විට), `createdBy` — දළු එකතු කරන දවසේම සටහන් කරන අත්තිකාරම්/පොහොර/තේ. මාසික ගෙවීම් පිටුවේ පෙන්වයි; හිමිකරු අතින් අඩු කරයි.
 - `payments`: `farmerId`, `month` (YYYY-MM), `kg`, `gross`, `advance`, `deductions`, `paidAmount`, `balance`
 - `inventory`: `type: dispatch`, `date`, `kg`, `destination`, `note`, `createdBy`
 - `settings/main`: `businessName`, `businessPhone`, `businessAddress`

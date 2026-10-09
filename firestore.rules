@@ -49,6 +49,18 @@ service cloud.firestore {
       // Keep collection records immutable; corrections should be handled by owner through a documented adjustment workflow.
       allow update, delete: if false;
     }
+    // අත්තිකාරම් / පොහොර / තේ මිලට ගැනීම් (දළු එකතු කරන දවසේම සටහන් කරයි). සංස්කරණය නැත; මකන්න හිමිකරුට පමණි.
+    match /farmerCharges/{chargeId} {
+      allow read: if staff();
+      allow create: if staff()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.farmerId is string
+        && request.resource.data.type in ['advance', 'fertilizer', 'tea']
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0;
+      allow update: if false;
+      allow delete: if isOwner();
+    }
     match /payments/{paymentId} {
       allow read: if staff();
       allow create, update: if isOwner()

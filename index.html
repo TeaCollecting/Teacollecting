@@ -104,10 +104,22 @@
           <div class="calc-box full"><span>ශුද්ධ දළු බර (ගෙවීමට ගණන් ගන්නේ)</span><strong id="collectionNet">0.00 kg</strong></div>
           <p id="collectPriceNote" class="muted full">කිලෝවක මිල මාසය අවසානයේ තීරණය කරනු ලැබේ. දැන් සටහන් කරන්නේ බර පමණි.</p>
           <label class="full">සටහන (අවශ්‍ය නම්)<input id="collectionNote"></label>
+          <div class="charge-box full">
+            <h3>අද දවසේ ගනුදෙනු (අවශ්‍ය නම් පමණක්)</h3>
+            <p class="muted">ගොවියා අද අත්තිකාරම් ගත්තත්, පොහොර හෝ තේ මිලට ගත්තත් මෙහි සටහන් කරන්න. මාසය අවසානයේ හිමිකරු ඒවා අතින් අඩු කර මාසික බිල සකස් කරයි.</p>
+            <div class="charge-grid">
+              <label>අත්තිකාරම් (රු.)<input id="chargeAdvance" type="number" min="0" step="0.01" placeholder="0"></label>
+              <label>පොහොර මිලට ගැනීම (රු.)<input id="chargeFertilizer" type="number" min="0" step="0.01" placeholder="0"></label>
+              <label>තේ මිලට ගැනීම (රු.)<input id="chargeTea" type="number" min="0" step="0.01" placeholder="0"></label>
+            </div>
+            <label>ගනුදෙනු සටහන<input id="chargeNote" placeholder="උදා: පොහොර මල්ලක් 2ක්"></label>
+            <button id="saveChargesOnly" class="btn btn-light" type="button">ගනුදෙනු පමණක් සුරකින්න (දළු නැතිව)</button>
+          </div>
           <button class="btn btn-primary full" type="submit">දළු එකතු කිරීම සුරකින්න</button>
           <p id="collectionMsg" class="full message"></p>
         </form>
         <div class="panel"><h2>අද එකතු කිරීම් · ලදුපත නැවත ලබාගන්න</h2><div class="table-wrap"><table><thead><tr><th>වේලාව</th><th>ගොවියා</th><th>බර (kg)</th><th></th></tr></thead><tbody id="todayCollectRows"></tbody></table></div></div>
+        <div class="panel"><h2>අද සටහන් කළ ගනුදෙනු (අත්තිකාරම් / පොහොර / තේ)</h2><div class="table-wrap"><table><thead><tr><th>වේලාව</th><th>ගොවියා</th><th>වර්ගය</th><th>මුදල</th><th>සටහන</th><th class="owner-only"></th></tr></thead><tbody id="todayChargeRows"></tbody></table></div></div>
       </section>
 
       <section id="page-settlements" class="page hidden">
@@ -119,6 +131,18 @@
         </div>
         <div id="settlementResult" class="panel hidden">
           <h2>ගෙවීම් සාරාංශය</h2>
+          <div class="charge-box">
+            <h3>මෙම මාසයේ සටහන් කළ අත්තිකාරම් / පොහොර / තේ</h3>
+            <div class="settlement-grid">
+              <div><span>අත්තිකාරම් (සටහන්)</span><strong id="chargeSumAdvance">රු. 0.00</strong></div>
+              <div><span>පොහොර (සටහන්)</span><strong id="chargeSumFertilizer">රු. 0.00</strong></div>
+              <div><span>තේ මිලට ගැනීම් (සටහන්)</span><strong id="chargeSumTea">රු. 0.00</strong></div>
+            </div>
+            <p class="muted">පහත බොත්තම් මඟින් මුදල් ක්ෂේත්‍රවලට යොදා ගත හැක; ඉන්පසු අවශ්‍ය නම් අතින් වෙනස් කළ හැක.</p>
+            <button id="applyAdvance" class="btn btn-light" type="button">අත්තිකාරම් ක්ෂේත්‍රයට යොදන්න</button>
+            <button id="applyOther" class="btn btn-light" type="button">පොහොර + තේ → "වෙනත් අඩු කිරීම්" ට යොදන්න</button>
+            <div class="table-wrap"><table><thead><tr><th>දිනය</th><th>වර්ගය</th><th>මුදල</th><th>සටහන</th></tr></thead><tbody id="settleChargeRows"></tbody></table></div>
+          </div>
           <div class="settlement-grid">
             <div><span>මුළු දළු</span><strong id="settleKg">0 kg</strong></div>
             <div><span>දළු වටිනාකම</span><strong id="settleGross">රු. 0.00</strong></div>

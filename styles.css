@@ -149,3 +149,5 @@ body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;widt
 @media screen and (max-width:760px){.brand-logo{width:40px;height:40px}.topactions{gap:6px}.install-btn{padding:8px 10px;font-size:.78rem;min-height:40px}.topbar .brand{font-size:1.02rem}}
 @media print{#installModal{display:none!important}}
 .qr-modal-card{width:min(100%,520px);max-height:94vh;overflow:auto}.card-preview{display:block;width:100%;max-width:440px;aspect-ratio:1012/638;margin:6px auto 14px;border-radius:14px;box-shadow:0 6px 18px #0003;background:#e6efe9}.qr-actions{display:grid;gap:8px;margin-bottom:6px}
+
+.charge-box{border:1px dashed #176b45;border-radius:12px;padding:12px;background:#f3f7f4;margin:6px 0}.charge-box h3{margin:0 0 6px}.charge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px}

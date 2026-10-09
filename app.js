@@ -25,7 +25,7 @@ const money = n => "රු. " + Number(n || 0).toLocaleString("en-LK",{minimumFr
 const num = n => Number(n || 0);
 const today = () => new Date().toLocaleDateString("en-CA");
 const monthNow = () => today().slice(0,7);
-let currentUser=null, role=null, farmers=[], collectionsData=[], paymentsData=[], inventoryData=[], settings={businessName:"තේ දළු එකතු කිරීම",businessPhone:"",businessAddress:""};
+let currentUser=null, role=null, farmers=[], collectionsData=[], chargesData=[], paymentsData=[], inventoryData=[], settings={businessName:"තේ දළු එකතු කිරීම",businessPhone:"",businessAddress:""};
 let settlementCalc=null, monthlyPrices={};
 const priceForMonth=m=>num(monthlyPrices[m]);
 const PRICE_PENDING="මිල තවම නියම වී නැත";
@@ -89,24 +89,45 @@ function showMessage(id,message,isError=false){if(!isError&&!navigator.onLine&&/
 function dateInput(id){$(id).value=today()}
 function safeText(v){return String(v??"")}
 function farmerName(id){return farmers.find(f=>f.id===id)?.name || "නොදන්නා ගොවියා"}
+// ===== දළු එකතු කරන දවසේම ගනුදෙනු: අත්තිකාරම් / පොහොර / තේ මිලට ගැනීම =====
+// farmerCharges: සටහන් කිරීම පමණි. මාසික බිල සකස් කිරීමේදී හිමිකරු අතින් (manually) අඩු කිරීම් ඇතුළත් කරයි.
+const CHARGE_TYPES={advance:"අත්තිකාරම්",fertilizer:"පොහොර",tea:"තේ මිලට ගැනීම"};
+const chargesFor=(farmerId,month)=>chargesData.filter(c=>c.farmerId===farmerId&&(c.date||"").startsWith(month));
+const sumChargeType=(rows,type)=>Math.round(rows.filter(c=>c.type===type).reduce((s,c)=>s+num(c.amount),0)*100)/100;
+function readChargeInputs(){
+  const note=$("chargeNote").value.trim();
+  return [["advance","chargeAdvance"],["fertilizer","chargeFertilizer"],["tea","chargeTea"]]
+    .map(([type,id])=>({type,amount:Math.round(num($(id).value)*100)/100,note})).filter(x=>x.amount>0);
+}
+function clearChargeInputs(){["chargeAdvance","chargeFertilizer","chargeTea","chargeNote"].forEach(id=>$(id).value="")}
+function saveCharges(farmerId,date,items,collectionId,now){
+  const time=now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"});
+  items.forEach(it=>{
+    const data={date,farmerId,type:it.type,amount:it.amount,note:it.note||"",createdBy:currentUser.uid,createdAt:serverTimestamp(),createdAtText:time};
+    if(collectionId)data.collectionId=collectionId;
+    qSet(doc(collection(db,"farmerCharges")),data);
+  });
+}
 function requireOwner(){if(role!=="owner"){showToast("මෙම ක්‍රියාව හිමිකරුට පමණි.");return false}return true}
 
 async function loadAll(opts = {}) {
   const co = !!opts.cacheOnly, seq = ++loadSeq;
-  const [f,c,p,i,st,mp] = await Promise.all([
+  const [f,c,p,i,st,mp,ch] = await Promise.all([
     readDocs(collection(db,"farmers"),co), readDocs(collection(db,"collections"),co),
     readDocs(collection(db,"payments"),co), readDocs(collection(db,"inventory"),co),
-    readDoc(doc(db,"settings","main"),co), readDocs(collection(db,"monthlyPrices"),co)
+    readDoc(doc(db,"settings","main"),co), readDocs(collection(db,"monthlyPrices"),co),
+    readDocs(collection(db,"farmerCharges"),co).catch(e=>{console.warn("farmerCharges කියවිය නොහැක (firestore.rules යාවත්කාලීන කර ඇත්දැයි බලන්න)",e);return null})
   ]);
   if (seq !== loadSeq) return; // a newer load has started; ignore this older result
   const dd = d => ({id:d.id,...d.data({serverTimestamps:"estimate"})});
   farmers=f.docs.map(dd);
   collectionsData=c.docs.map(dd).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  chargesData=ch?ch.docs.map(dd).sort((x,y)=>(y.date||"").localeCompare(x.date||"")):[];
   paymentsData=p.docs.map(dd).sort((a,b)=>(b.month||"").localeCompare(a.month||""));
   inventoryData=i.docs.map(dd).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   if(st&&st.exists()) settings={...settings,...st.data()};
   monthlyPrices={};mp.docs.forEach(d=>{monthlyPrices[d.id]=num(d.data().pricePerKg)});
-  pendingCount=[f,c,p,i,mp].reduce((n,x)=>n+x.docs.filter(d=>d.metadata.hasPendingWrites).length,0)+((st&&st.metadata&&st.metadata.hasPendingWrites)?1:0);
+  pendingCount=[f,c,p,i,mp,ch||{docs:[]}].reduce((n,x)=>n+x.docs.filter(d=>d.metadata.hasPendingWrites).length,0)+((st&&st.metadata&&st.metadata.hasPendingWrites)?1:0);
   updateNetBadge();watchPending();
   renderAll();
 }
@@ -167,8 +188,18 @@ function calculateSettlement(){
   $("settleKg").textContent=kg.toFixed(2)+" kg";$("settleGross").textContent=money(gross);
   $("settleAdvance").value=existing?.advance??0;$("settleDeductions").value=existing?.deductions??0;
   $("settlePaid").value=existing?.paidAmount??Math.max(0,gross);$("settlePaidDate").value=existing?.paidDate||today();$("settleNote").value=existing?.note||"";
+  renderSettleCharges(farmerId,month);
   $("settlementResult").classList.remove("hidden");updateSettlementBalance();
 }
+function renderSettleCharges(farmerId,month){
+  const rows=chargesFor(farmerId,month).slice().sort((x,y)=>(x.date||"").localeCompare(y.date||""));
+  const adv=sumChargeType(rows,"advance"),fert=sumChargeType(rows,"fertilizer"),tea=sumChargeType(rows,"tea");
+  settlementCalc.chargeSums={adv,fert,tea};
+  $("chargeSumAdvance").textContent=money(adv);$("chargeSumFertilizer").textContent=money(fert);$("chargeSumTea").textContent=money(tea);
+  $("settleChargeRows").innerHTML=rows.map(c=>`<tr><td>${escapeHtml(c.date)}</td><td>${escapeHtml(CHARGE_TYPES[c.type]||c.type)}</td><td>${money(c.amount)}</td><td>${escapeHtml(c.note)}</td></tr>`).join("")||'<tr><td colspan="4">මෙම මාසයේ අත්තිකාරම් / පොහොර / තේ සටහන් නැත.</td></tr>';
+}
+$("applyAdvance").addEventListener("click",()=>{if(!settlementCalc?.chargeSums)return;$("settleAdvance").value=settlementCalc.chargeSums.adv;updateSettlementBalance()});
+$("applyOther").addEventListener("click",()=>{if(!settlementCalc?.chargeSums)return;const s=settlementCalc.chargeSums;$("settleDeductions").value=Math.round((s.fert+s.tea)*100)/100;updateSettlementBalance()});
 function printable(title,body,extraCss=""){
   const w=window.open("","_blank");if(!w){showToast("මුද්‍රණ කවුළුව අවහිර වී ඇත. Browser pop-ups සක්‍රීය කරන්න.");return}
   w.document.write(`<!doctype html><html lang="si"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet"><style>body{font-family:Arial,sans-serif;padding:25px;color:#18352a}h1{font-size:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:8px;text-align:left}.total{font-size:18px;font-weight:bold;margin-top:18px}.contact-foot{margin-top:26px;padding-top:10px;border-top:2px solid #176b45;text-align:center;font-size:15px;font-weight:bold}.contact-foot a{color:#176b45;text-decoration:none}.idcard-page .contact-foot{display:none}@media print{button{display:none}}${extraCss}</style></head><body>${body}<div class="contact-foot">දුරකථන: ${contactHtml()}</div><button onclick="window.print()">මුද්‍රණය / PDF</button></body></html>`);w.document.close();
@@ -176,7 +207,9 @@ function printable(title,body,extraCss=""){
 function settlementPrint(){
   if(!settlementCalc)return;
   const f=farmers.find(x=>x.id===settlementCalc.farmerId)||{},advance=num($("settleAdvance").value),deductions=num($("settleDeductions").value),paid=num($("settlePaid").value),balance=settlementCalc.gross-advance-deductions-paid;
-  printable("මාසික ගෙවීම් පත්‍රය",`<h1>${escapeHtml(settings.businessName)}</h1><p>${escapeHtml(settings.businessAddress)} ${escapeHtml(settings.businessPhone)}</p><h2>ගොවි මාසික ගෙවීම් පත්‍රය</h2><p>මාසය: ${escapeHtml(settlementCalc.month)}</p><p>ගොවි අංකය: ${escapeHtml(f.code)} | නම: ${escapeHtml(f.name)}</p><p>මුළු දළු: ${settlementCalc.kg.toFixed(2)} kg</p><table><tr><th>විස්තරය</th><th>මුදල</th></tr><tr><td>දළු වටිනාකම</td><td>${money(settlementCalc.gross)}</td></tr><tr><td>අත්තිකාරම්</td><td>${money(advance)}</td></tr><tr><td>වෙනත් අඩු කිරීම්</td><td>${money(deductions)}</td></tr><tr><td>මෙවර ගෙවූ මුදල</td><td>${money(paid)}</td></tr></table><p class="total">ඉතිරි ශේෂය: ${money(balance)}</p><p>ගෙවූ දිනය: ${escapeHtml($("settlePaidDate").value)}</p><p>අත්සන: __________________</p>`);
+  const chRows=chargesFor(settlementCalc.farmerId,settlementCalc.month).slice().sort((x,y)=>(x.date||"").localeCompare(y.date||""));
+  const chargeHtml=chRows.length?`<h3>මාසය තුළ සටහන් කළ ගනුදෙනු</h3><table><tr><th>දිනය</th><th>වර්ගය</th><th>මුදල</th><th>සටහන</th></tr>${chRows.map(c=>`<tr><td>${escapeHtml(c.date)}</td><td>${escapeHtml(CHARGE_TYPES[c.type]||c.type)}</td><td>${money(c.amount)}</td><td>${escapeHtml(c.note)}</td></tr>`).join("")}</table>`:"";
+  printable("මාසික ගෙවීම් පත්‍රය",`<h1>${escapeHtml(settings.businessName)}</h1><p>${escapeHtml(settings.businessAddress)} ${escapeHtml(settings.businessPhone)}</p><h2>ගොවි මාසික ගෙවීම් පත්‍රය</h2><p>මාසය: ${escapeHtml(settlementCalc.month)}</p><p>ගොවි අංකය: ${escapeHtml(f.code)} | නම: ${escapeHtml(f.name)}</p><p>මුළු දළු: ${settlementCalc.kg.toFixed(2)} kg</p><table><tr><th>විස්තරය</th><th>මුදල</th></tr><tr><td>දළු වටිනාකම</td><td>${money(settlementCalc.gross)}</td></tr><tr><td>අත්තිකාරම්</td><td>${money(advance)}</td></tr><tr><td>වෙනත් අඩු කිරීම්</td><td>${money(deductions)}</td></tr><tr><td>මෙවර ගෙවූ මුදල</td><td>${money(paid)}</td></tr></table><p class="total">ඉතිරි ශේෂය: ${money(balance)}</p>${chargeHtml}<p>ගෙවූ දිනය: ${escapeHtml($("settlePaidDate").value)}</p><p>අත්සන: __________________</p>`);
 }
 async function withBusy(button,fn){button.disabled=true;try{await fn()}catch(e){console.error(e);showToast("දෝෂයක්: "+(e.message||"කරුණාකර සැකසුම් පරීක්ෂා කරන්න."))}finally{button.disabled=false}}
 
@@ -387,10 +420,29 @@ $("collectionForm").addEventListener("submit",e=>{e.preventDefault();withBusy(e.
   if(!farmerId||gross<=0)throw Error("ගොවියා සහ බර පරීක්ෂා කරන්න.");
   if(kg<=0)throw Error("අඩු කිරීම මුළු බරට වඩා වැඩිය. අගයන් පරීක්ෂා කරන්න.");
   const date=$("collectionDate").value,now=new Date(),farmerObj=farmers.find(x=>x.id===farmerId);
-  qAdd(collection(db,"collections"),{date,farmerId,kg,grossKg:gross,deductKg:deduct,note:$("collectionNote").value.trim(),createdBy:currentUser.uid,createdAt:serverTimestamp(),createdAtText:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"})});
+  const colRef=doc(collection(db,"collections")),chargeItems=readChargeInputs();
+  qSet(colRef,{date,farmerId,kg,grossKg:gross,deductKg:deduct,note:$("collectionNote").value.trim(),createdBy:currentUser.uid,createdAt:serverTimestamp(),createdAtText:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"})});
+  saveCharges(farmerId,date,chargeItems,colRef.id,now);
   $("collectionForm").reset();dateInput("collectionDate");updateCollectionNet();showMessage("collectionMsg","දළු එකතු කිරීම සුරැකුණි.");await loadAll({cacheOnly:true});
-  openReceipt({date,time:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"}),farmer:farmerObj,gross,deduct,kg,month:monthSummary(farmerId,date)}).catch(console.error);
+  openReceipt({date,time:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"}),farmer:farmerObj,gross,deduct,kg,month:monthSummary(farmerId,date),charges:chargeItems}).catch(console.error);
 })});
+$("saveChargesOnly").addEventListener("click",()=>withBusy($("saveChargesOnly"),async()=>{
+  const farmerId=$("collectionFarmer").value,date=$("collectionDate").value,items=readChargeInputs();
+  if(!farmerId)throw Error("ගොවියා තෝරන්න.");
+  if(!items.length)throw Error("අත්තිකාරම්, පොහොර හෝ තේ මුදලක් ඇතුළත් කරන්න.");
+  const now=new Date(),farmerObj=farmers.find(x=>x.id===farmerId);
+  saveCharges(farmerId,date,items,null,now);
+  clearChargeInputs();showMessage("collectionMsg","ගනුදෙනු සටහන සුරැකුණි.");await loadAll({cacheOnly:true});
+  openReceipt({date,time:now.toLocaleTimeString("si-LK",{hour:"2-digit",minute:"2-digit"}),farmer:farmerObj,gross:0,deduct:0,kg:0,chargesOnly:true,charges:items}).catch(console.error);
+}));
+$("todayChargeRows").addEventListener("click",e=>{
+  const b=e.target.closest(".del-charge-btn");if(!b)return;
+  if(!requireOwner())return;
+  const c=chargesData.find(x=>x.id===b.dataset.id);if(!c)return;
+  if(paymentsData.some(p=>p.farmerId===c.farmerId&&p.month===(c.date||"").slice(0,7))){showToast("මෙම මාසයේ ගෙවීම් දැනටමත් සුරැකී ඇති නිසා මකා දැමිය නොහැක.");return}
+  if(!confirm(`${farmerName(c.farmerId)} — ${CHARGE_TYPES[c.type]||c.type} ${money(c.amount)} සටහන මකා දමන්නද?`))return;
+  withBusy(b,async()=>{qDelete(doc(db,"farmerCharges",c.id));showToast("සටහන මකා දමන ලදී.");await loadAll({cacheOnly:true})});
+});
 $("calculateSettlement").addEventListener("click",calculateSettlement);
 ["settleAdvance","settleDeductions","settlePaid"].forEach(id=>$(id).addEventListener("input",updateSettlementBalance));
 $("saveSettlement").addEventListener("click",()=>{if(!requireOwner()||!settlementCalc)return;withBusy($("saveSettlement"),async()=>{
@@ -856,13 +908,22 @@ async function buildReceiptCanvas(d,paper,withPhone){
   row("නම",safeText(f.name),22,700);
   if(withPhone&&f.phone)row("දුරකථන",safeText(f.phone));
   dash();
-  const ded=num(d.deduct);
-  row("මුළු බර",num(d.gross??d.kg).toFixed(2)+" kg");
-  row("මල්ලේ බර",(ded>0?"- ":"")+ded.toFixed(2)+" kg");
-  y+=2;
-  center("ශුද්ධ දළු බර",20,400,0);
-  center(num(d.kg).toFixed(2)+" kg",54,700,2);
-  dash();
+  if(!d.chargesOnly){
+    const ded=num(d.deduct);
+    row("මුළු බර",num(d.gross??d.kg).toFixed(2)+" kg");
+    row("මල්ලේ බර",(ded>0?"- ":"")+ded.toFixed(2)+" kg");
+    y+=2;
+    center("ශුද්ධ දළු බර",20,400,0);
+    center(num(d.kg).toFixed(2)+" kg",54,700,2);
+    dash();
+  }
+  const chg=(d.charges||[]).filter(x=>num(x.amount)>0);
+  if(chg.length){
+    center("අද ගනුදෙනු",20,700,0);
+    chg.forEach(x=>row(CHARGE_TYPES[x.type]||x.type,money(x.amount),22,400));
+    center("මාසික ගෙවීමේදී අඩු කෙරේ",16,400,0);
+    dash();
+  }
   center("ස්තූතියි!",22,600,2);
   center("WhatsApp / ඇමතුම්: "+contactText(),16,400,0);
   center(RECEIPT_CREDIT,15,400,0);
@@ -914,11 +975,17 @@ function renderTodayCollect(){
   const el=$("todayCollectRows");if(!el)return;
   const rows=collectionsData.filter(c=>c.date===today()).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
   el.innerHTML=rows.map(c=>`<tr><td>${escapeHtml(c.createdAtText||c.date)}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${num(c.kg).toFixed(2)}</td><td><button class="btn btn-secondary receipt-btn" type="button" data-id="${escapeHtml(c.id)}">🧾 ලදුපත</button></td></tr>`).join("")||'<tr><td colspan="4">අද දළු එකතු කිරීම් නැත.</td></tr>';
+  renderTodayCharges();
+}
+function renderTodayCharges(){
+  const el=$("todayChargeRows");if(!el)return;
+  const rows=chargesData.filter(c=>c.date===today()).sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0));
+  el.innerHTML=rows.map(c=>`<tr><td>${escapeHtml(c.createdAtText||c.date)}</td><td>${escapeHtml(farmerName(c.farmerId))}</td><td>${escapeHtml(CHARGE_TYPES[c.type]||c.type)}</td><td>${money(c.amount)}</td><td>${escapeHtml(c.note)}</td><td class="owner-only"><button class="btn btn-light del-charge-btn" type="button" data-id="${escapeHtml(c.id)}">මකන්න</button></td></tr>`).join("")||'<tr><td colspan="6">අද ගනුදෙනු සටහන් නැත.</td></tr>';
 }
 $("todayCollectRows").addEventListener("click",e=>{
   const b=e.target.closest(".receipt-btn");if(!b)return;
   const c=collectionsData.find(x=>x.id===b.dataset.id);if(!c)return;
-  openReceipt({date:c.date,time:c.createdAtText||"",farmer:farmers.find(x=>x.id===c.farmerId),gross:c.grossKg??c.kg,deduct:c.deductKg||0,kg:c.kg,month:monthSummary(c.farmerId,c.date)}).catch(console.error);
+  openReceipt({date:c.date,time:c.createdAtText||"",farmer:farmers.find(x=>x.id===c.farmerId),gross:c.grossKg??c.kg,deduct:c.deductKg||0,kg:c.kg,month:monthSummary(c.farmerId,c.date),charges:chargesData.filter(x=>x.collectionId===c.id)}).catch(console.error);
 });
 
 function updateCollectionNet(){
