@@ -55,10 +55,10 @@ tfoot th{background:#e7f2ea;color:#176b45}
 /* ===== Site footer: larger, with tap-friendly contact buttons ===== */
 body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;width:100%}
 .site-footer{flex-shrink:0;margin-top:14px;background:#fff;border-top:3px solid #176b45;color:#4a6355;font-size:1.1rem;line-height:1.5;
-  padding:28px max(16px,calc((100% - 1200px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  padding:28px max(16px,calc((100% - 1200px)/2));display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px}
 .foot-logo{display:block;flex:0 0 auto}
-.foot-logo img{display:block;width:160px;height:auto}
-.foot-contact{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.foot-logo img{display:block;width:260px;max-width:100%;height:auto;margin:0 auto}
+.foot-contact{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
 .foot-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 16px;border-radius:20px;background:transparent;border:1.5px solid currentColor;font-size:.92rem;font-weight:600;text-decoration:none;white-space:nowrap}
 .foot-btn:hover,.foot-btn:active{background:#176b4512}
 .foot-wa{color:#1a7f43!important}
@@ -68,7 +68,7 @@ body{min-height:100vh;display:flex;flex-direction:column}main{flex:1 0 auto;widt
 @media(max-width:640px){
   /* right padding keeps the 🧮 button from covering the text */
   .site-footer{padding:22px 112px 22px 12px;font-size:1rem;gap:12px}
-  .foot-logo img{width:120px}
+  .foot-logo img{width:200px}
   .foot-contact{flex-direction:column;align-items:stretch;gap:8px;width:100%}
   .foot-btn{justify-content:center;font-size:.9rem;min-height:42px;padding:0 12px}
   .foot-mail{display:none}
